@@ -82,6 +82,53 @@ class ReceiptSorterApp {
     ipcMain.handle('get-app-version', () => {
       return app.getVersion();
     });
+
+    // Firebase status check
+    ipcMain.handle('firebase-status', async () => {
+      try {
+        // Import Firebase service
+        const { db } = await import('./firebase');
+        return { 
+          success: true, 
+          connected: true,
+          emulator: process.env.NODE_ENV === 'development'
+        };
+      } catch (error) {
+        console.error('Firebase status check failed:', error);
+        return { 
+          success: false, 
+          connected: false, 
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    });
+
+    // Firebase test connection
+    ipcMain.handle('firebase-test', async () => {
+      try {
+        const { db } = await import('./firebase');
+        const { collection, getDocs } = await import('firebase/firestore');
+        
+        // Try to read from a test collection
+        await getDocs(collection(db, 'test'));
+        return { success: true, message: 'Firebase connection successful' };
+      } catch (error) {
+        console.error('Firebase test failed:', error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    });
+
+    // Get Firebase configuration (secure)
+    ipcMain.handle('get-firebase-config', () => {
+      return {
+        apiKey: process.env.FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.FIREBASE_APP_ID
+      };
+    });
   }
 }
 

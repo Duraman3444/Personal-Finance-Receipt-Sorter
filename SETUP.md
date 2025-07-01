@@ -20,7 +20,15 @@ Create a `.env` file in the project root:
 # .env file should contain:
 
 OPENAI_KEY=sk-your-actual-openai-api-key-here
+
+# Firebase Configuration (Full API Keys)
+FIREBASE_API_KEY=your-firebase-api-key-here
+FIREBASE_AUTH_DOMAIN=personalfinancerecieptsorter.firebaseapp.com
 FIREBASE_PROJECT_ID=personalfinancerecieptsorter
+FIREBASE_STORAGE_BUCKET=personalfinancerecieptsorter.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
+FIREBASE_APP_ID=your-app-id-here
+
 NODE_ENV=development
 N8N_HOST=localhost
 N8N_PORT=5678

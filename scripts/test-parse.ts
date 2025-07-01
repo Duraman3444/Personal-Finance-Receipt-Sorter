@@ -141,7 +141,7 @@ async function testReceiptParsing() {
       return null;
     }
   } catch (error) {
-    console.error('❌ Error testing receipt parsing:', error.message);
+    console.error('❌ Error testing receipt parsing:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }

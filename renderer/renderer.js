@@ -98,16 +98,38 @@ function startStatusChecks() {
 
 async function checkFirebaseStatus() {
     try {
-        // This will be implemented when we add Firebase integration
-        // For now, simulate a connection check
-        const isConnected = false; // Will be replaced with actual Firebase check
+        // Check both client and main process Firebase status
+        let clientConnected = false;
+        let mainProcessConnected = false;
         
-        if (isConnected) {
+        // Check client-side Firebase
+        if (window.firebaseClient) {
+            clientConnected = await window.firebaseClient.testConnection();
+        }
+        
+        // Check main process Firebase
+        if (window.electronAPI && window.electronAPI.firebaseStatus) {
+            const mainStatus = await window.electronAPI.firebaseStatus();
+            mainProcessConnected = mainStatus.success && mainStatus.connected;
+        }
+        
+        // Update UI based on status
+        if (clientConnected || mainProcessConnected) {
             firebaseStatus.classList.add('connected');
-            firebaseText.textContent = 'Connected';
+            if (window.location.protocol === 'file:') {
+                // Electron environment
+                firebaseText.textContent = mainProcessConnected ? 
+                    (process?.env?.NODE_ENV === 'development' ? 'Emulator Ready' : 'Connected') : 
+                    'Client Ready';
+            } else {
+                firebaseText.textContent = 'Connected';
+            }
+        } else if (window.firebaseClient && window.firebaseClient.isInitialized) {
+            firebaseStatus.classList.remove('connected');
+            firebaseText.textContent = 'Initialized';
         } else {
             firebaseStatus.classList.remove('connected');
-            firebaseText.textContent = 'Emulator Ready';
+            firebaseText.textContent = 'Initializing...';
         }
     } catch (error) {
         firebaseStatus.classList.remove('connected');

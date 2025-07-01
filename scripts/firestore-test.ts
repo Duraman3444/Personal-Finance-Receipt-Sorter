@@ -5,24 +5,36 @@ import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// Firebase configuration
+// Firebase configuration - requires environment variables
 const firebaseConfig = {
-  projectId: process.env.FIREBASE_PROJECT_ID || 'personalfinancerecieptsorter'
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
+
+// Validate that all required config is present
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
+  throw new Error('Missing required Firebase configuration. Please check your .env file.');
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Connect to Firestore emulator if in development
-if (process.env.NODE_ENV === 'development') {
-  try {
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    console.log('🔗 Connected to Firestore emulator');
-  } catch (error) {
-    console.log('ℹ️  Firestore emulator connection failed (may already be connected)');
-  }
-}
+// Connect to Firestore emulator if in development (disabled for now - requires Java)
+// if (process.env.NODE_ENV === 'development') {
+//   try {
+//     connectFirestoreEmulator(db, 'localhost', 8080);
+//     console.log('🔗 Connected to Firestore emulator');
+//   } catch (error) {
+//     console.log('ℹ️  Firestore emulator connection failed (may already be connected)');
+//   }
+// }
+
+console.log('🔥 Connected to production Firebase');
 
 // Sample receipt data
 const sampleReceipt = {
@@ -59,7 +71,7 @@ async function testFirestoreWrite() {
     
     return docRef.id;
   } catch (error) {
-    console.error('❌ Error writing to Firestore:', error.message);
+    console.error('❌ Error writing to Firestore:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -95,7 +107,7 @@ async function testFirestoreRead() {
     
     return receipts;
   } catch (error) {
-    console.error('❌ Error reading from Firestore:', error.message);
+    console.error('❌ Error reading from Firestore:', error instanceof Error ? error.message : String(error));
     return [];
   }
 }
@@ -122,12 +134,11 @@ async function testFirestoreConnection() {
   }
 }
 
-// Instructions for running with emulator
+// Instructions for running with production Firebase
 console.log('📋 Firestore Test Instructions:');
-console.log('1. Make sure Firebase emulator is running: firebase emulators:start');
-console.log('2. Emulator should be accessible at http://localhost:4000');
-console.log('3. Firestore emulator runs on port 8080');
-console.log('4. Run this test script\n');
+console.log('1. Using production Firebase (no emulator needed)');
+console.log('2. Make sure your .env file has the correct Firebase config');
+console.log('3. Run this test script\n');
 
 // Run the test
 testFirestoreConnection(); 

@@ -17,14 +17,15 @@ This documentation suite provides comprehensive coverage of the Personal Finance
 - **[Design Rationale](#design-decisions)** - Explanation of key design choices and trade-offs
 
 ### 🔧 Technical Implementation
-- **[API Documentation](#api-documentation)** - OpenAI integration, Firebase schema, and N8N workflows
-- **[Data Models](#data-models)** - Database schemas and data structures
-- **[Security & Privacy](#security-privacy)** - Privacy controls and security measures
+- **[API Documentation](API_DOCUMENTATION.md)** - OpenAI integration, Firebase schema, and N8N workflows
+- **[Testing Strategy](TESTING_STRATEGY.md)** - Multi-layered testing approach and quality assurance
+- **[Security Documentation](SECURITY_DOCUMENTATION.md)** - Privacy controls and security measures
 
 ### 📊 Project Management
-- **[Development Roadmap](#development-roadmap)** - Feature timeline and milestone planning
-- **[Testing Strategy](#testing-strategy)** - Quality assurance and testing approach
-- **[Deployment Guide](#deployment-guide)** - Build and distribution processes
+- **[Project Management](PROJECT_MANAGEMENT.md)** - Sprint planning, resource allocation, and timeline management
+- **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Build processes, distribution, and production deployment
+- **[User Flow Diagrams](USER_FLOW_DIAGRAMS.md)** - Detailed user interaction flows and journey maps
+- **[Changelog](CHANGELOG.md)** - Version history and feature tracking
 
 ## 🎯 Quick Start Guide
 
@@ -35,13 +36,13 @@ This documentation suite provides comprehensive coverage of the Personal Finance
 
 ### For Developers
 1. Read **[Technical Architecture](TECHNICAL_ARCHITECTURE.md)** for system design
-2. Review **[API Documentation](#api-documentation)** for integration details
-3. Check **[Development Roadmap](#development-roadmap)** for implementation timeline
+2. Review **[API Documentation](API_DOCUMENTATION.md)** for integration details
+3. Check **[Project Management](PROJECT_MANAGEMENT.md)** for implementation timeline
 
 ### For Designers
 1. Study **[UI Wireframes](UI_WIREFRAMES.md)** for visual design system
 2. Review **[User Stories](USER_STORIES.md)** for user requirements
-3. Examine **[User Flow Diagrams](#user-flow-diagrams)** for interaction patterns
+3. Examine **[User Flow Diagrams](USER_FLOW_DIAGRAMS.md)** for interaction patterns
 
 ## 🎨 Design System Summary
 

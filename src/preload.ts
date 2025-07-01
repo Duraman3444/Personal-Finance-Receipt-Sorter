@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFolder: (folderPath: string) => ipcRenderer.invoke('open-folder', folderPath),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   
+  // Firebase operations
+  firebaseStatus: () => ipcRenderer.invoke('firebase-status'),
+  firebaseTest: () => ipcRenderer.invoke('firebase-test'),
+  getFirebaseConfig: () => ipcRenderer.invoke('get-firebase-config'),
+  
   // Future: Receipt processing APIs will be added here
   // processReceipt: (filePath: string) => ipcRenderer.invoke('process-receipt', filePath),
   // getReceipts: () => ipcRenderer.invoke('get-receipts'),
@@ -23,6 +28,16 @@ declare global {
       getAppVersion: () => Promise<string>;
       openFolder: (folderPath: string) => Promise<void>;
       openExternal: (url: string) => Promise<void>;
+      firebaseStatus: () => Promise<any>;
+      firebaseTest: () => Promise<any>;
+      getFirebaseConfig: () => Promise<{
+        apiKey: string;
+        authDomain: string;
+        projectId: string;
+        storageBucket: string;
+        messagingSenderId: string;
+        appId: string;
+      }>;
       // Future APIs will be typed here
     };
   }
