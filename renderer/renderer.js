@@ -146,157 +146,541 @@ async function loadCategories() {
 }
 
 async function loadAnalytics(){
-    const aCont=document.querySelector('#analytics-page .welcome-card');
+    const aCont=document.querySelector('#analytics-page');
     if(!aCont) return;
-    aCont.innerHTML='<h2>Analytics</h2><p>Loading...</p>';
+    
+    // Show loading state
+    document.getElementById('total-spent').textContent = '$0';
+    document.getElementById('total-receipts').textContent = '0';
+    document.getElementById('avg-receipt').textContent = '$0';
+    document.getElementById('top-category').textContent = '--';
+    
     try{
-        const receipts=await window.firebaseClient.getReceipts(500);
-        const total=receipts.reduce((sum,r)=>sum+(r.total||0),0);
-        const count=receipts.length;
-        const avg=count? total/count:0;
-
-        // Aggregate daily totals
-        const dailyTotals = {};
-        receipts.forEach(r=>{
-            const dRaw = r.date;
-            let d;
-            if (dRaw && typeof dRaw === 'object' && typeof dRaw.toDate === 'function') {
-                d = dRaw.toDate();
-            } else {
-                d = new Date(dRaw);
-            }
-            if(isNaN(d)) return;
-            const key = d.toISOString().split('T')[0];
-            dailyTotals[key] = (dailyTotals[key]||0) + (r.total||0);
-        });
-        const sortedDates = Object.keys(dailyTotals).sort();
-        const dailyValues = sortedDates.map(d=> Number(dailyTotals[d].toFixed(2)));
-
-        // Aggregate category totals
-        const categoryTotals = {};
-        receipts.forEach(r=>{
-            const cat = r.category || 'Uncategorized';
-            categoryTotals[cat] = (categoryTotals[cat]||0) + (r.total||0);
-        });
-        const categories = Object.keys(categoryTotals).sort();
-        const categoryValues = categories.map(c=> Number(categoryTotals[c].toFixed(2)));
-
-        // Build HTML skeleton
-        let html='<h2>Analytics</h2>';
-        html+=`<p>Total Receipts: <strong>${count}</strong></p>`;
-        html+=`<p>Total Spent: <strong>${formatCurrency(total)}</strong></p>`;
-        html+=`<p>Average per Receipt: <strong>${formatCurrency(avg)}</strong></p>`;
-        html+='<div class="chart-wrapper" style="margin-top:1.5rem;">\
-                  <canvas id="spendingTimeChart" style="max-width:100%;height:300px;"></canvas>\
-               </div>';
-        html+='<div class="chart-wrapper" style="margin-top:2rem;">\
-                  <canvas id="categoryChart" style="max-width:100%;height:300px;"></canvas>\
-               </div>';
-        aCont.innerHTML=html;
-
-        // Ensure Chart.js is loaded
-        const ensureChartReady = async()=>{
-            if(window.Chart){return;}
-            try{
-                const mod = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.esm.js');
-                mod.Chart.register(...mod.registerables);
-                window.Chart = mod.Chart;
-            }catch(e){console.error('Failed to load Chart.js',e);throw e;}
-        };
-        await ensureChartReady();
-
-        // Destroy existing charts if we reload
-        window.analyticsCharts = window.analyticsCharts || {};
-        if(window.analyticsCharts.timeChart){window.analyticsCharts.timeChart.destroy();}
-        if(window.analyticsCharts.categoryChart){window.analyticsCharts.categoryChart.destroy();}
-
-        // Generate colors for category chart
-        const genColors = (n)=>{
-            const colors=[];
-            for(let i=0;i<n;i++){
-                const hue=Math.floor((360/n)*i);
-                colors.push(`hsl(${hue},70%,60%)`);
-            }
-            return colors;
-        };
-
-        const { textColor, gridColor, lineColor, lineFill } = getChartThemeColors();
-
-        const ctxTime = document.getElementById('spendingTimeChart').getContext('2d');
-        window.analyticsCharts.timeChart = new Chart(ctxTime, {
-            type: 'line',
-            data: {
-                labels: sortedDates,
-                datasets: [{
-                    label: 'Spending Over Time',
-                    data: dailyValues,
-                    borderColor: lineColor,
-                    backgroundColor: lineFill,
-                    fill: true,
-                    tension: 0.25
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins:{
-                    legend:{labels:{color:textColor}}
-                },
-                scales: {
-                    x:{
-                        ticks:{color:textColor},
-                        grid:{color:gridColor}
-                    },
-                    y: {
-                        ticks: {
-                            color:textColor,
-                            callback: (v)=>formatCurrency(v)
-                        },
-                        grid:{color:gridColor}
-                    }
-                }
-            }
-        });
-
-        const ctxCat = document.getElementById('categoryChart').getContext('2d');
-        window.analyticsCharts.categoryChart = new Chart(ctxCat, {
-            type: 'bar',
-            data: {
-                labels: categories,
-                datasets: [{
-                    label: 'Spending by Category',
-                    data: categoryValues,
-                    backgroundColor: genColors(categories.length),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins:{
-                    legend:{labels:{color:textColor}}
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            color:textColor,
-                            callback: (v)=>formatCurrency(v)
-                        },
-                        grid:{color:gridColor}
-                    },
-                    y:{
-                        ticks:{color:textColor},
-                        grid:{color:gridColor}
-                    }
-                }
-            }
-        });
-
+        const receipts = await window.firebaseClient.getReceipts(1000);
+        
+        // Store data globally for theme switching
+        window.currentAnalyticsData = receipts;
+        
+        // Set up date range filtering
+        setupDateRangeFiltering(receipts);
+        
+        // Initial load with all data
+        renderAnalytics(receipts, receipts);
+        
     }catch(err){
-        console.error(err);
-        aCont.innerHTML='<h2>Analytics</h2><p style="color:red;">Error loading analytics.</p>';
+        console.error('Analytics error:', err);
+        showNotification('Error loading analytics data', 'error');
     }
+}
+
+function setupDateRangeFiltering(allReceipts) {
+    const dateRangeBtns = document.querySelectorAll('.date-range-btn');
+    
+    dateRangeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active state
+            dateRangeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Filter data based on range
+            const range = btn.dataset.range;
+            const filteredReceipts = filterReceiptsByDateRange(allReceipts, range);
+            renderAnalytics(filteredReceipts, allReceipts);
+        });
+    });
+}
+
+function filterReceiptsByDateRange(receipts, range) {
+    if (range === 'all') return receipts;
+    
+    const days = parseInt(range);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    return receipts.filter(r => {
+        if (!r.date) return false;
+        const receiptDate = parseReceiptDate(r.date);
+        return receiptDate >= cutoffDate;
+    });
+}
+
+function parseReceiptDate(dateInput) {
+    if (dateInput && typeof dateInput === 'object' && typeof dateInput.toDate === 'function') {
+        return dateInput.toDate();
+    }
+    return new Date(dateInput);
+}
+
+function renderAnalytics(receipts, allReceipts) {
+    // Calculate basic stats
+    const total = receipts.reduce((sum, r) => sum + (r.total || 0), 0);
+    const count = receipts.length;
+    const avg = count ? total / count : 0;
+    
+    // Calculate comparison stats (vs all time or previous period)
+    const comparison = calculateComparisonStats(receipts, allReceipts);
+    
+    // Update stat cards
+    updateStatCards(total, count, avg, receipts, comparison);
+    
+    // Render all charts
+    renderAllCharts(receipts);
+    
+    // Generate insights
+    generateSmartInsights(receipts, allReceipts);
+}
+
+function calculateComparisonStats(current, all) {
+    if (current.length === all.length) {
+        // If showing all data, compare with previous period
+        return { totalChange: 0, countChange: 0, avgChange: 0 };
+    }
+    
+    const currentTotal = current.reduce((sum, r) => sum + (r.total || 0), 0);
+    const allTotal = all.reduce((sum, r) => sum + (r.total || 0), 0);
+    const otherTotal = allTotal - currentTotal;
+    
+    const totalChange = otherTotal > 0 ? ((currentTotal - otherTotal) / otherTotal) * 100 : 0;
+    const countChange = ((current.length - (all.length - current.length)) / Math.max(1, all.length - current.length)) * 100;
+    const avgChange = totalChange - countChange;
+    
+    return { totalChange, countChange, avgChange };
+}
+
+function updateStatCards(total, count, avg, receipts, comparison) {
+    document.getElementById('total-spent').textContent = formatCurrency(total);
+    document.getElementById('total-receipts').textContent = count.toString();
+    document.getElementById('avg-receipt').textContent = formatCurrency(avg);
+    
+    // Find top category
+    const categoryTotals = {};
+    receipts.forEach(r => {
+        const cat = r.category || 'Uncategorized';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + (r.total || 0);
+    });
+    const topCategory = Object.keys(categoryTotals).reduce((a, b) => 
+        categoryTotals[a] > categoryTotals[b] ? a : b, 'None');
+    document.getElementById('top-category').textContent = topCategory;
+    
+    // Update change indicators
+    updateChangeIndicator('total-change', comparison.totalChange);
+    updateChangeIndicator('receipts-change', comparison.countChange);
+    updateChangeIndicator('avg-change', comparison.avgChange);
+    updateChangeIndicator('category-change', 0); // Category change calculation would be complex
+}
+
+function updateChangeIndicator(elementId, changePercent) {
+    const element = document.getElementById(elementId);
+    if (changePercent === 0) {
+        element.textContent = '--';
+        element.className = 'stat-change';
+    } else {
+        const isPositive = changePercent > 0;
+        element.textContent = `${isPositive ? '+' : ''}${changePercent.toFixed(1)}%`;
+        element.className = `stat-change ${isPositive ? 'positive' : 'negative'}`;
+    }
+}
+
+async function renderAllCharts(receipts) {
+    await ensureChartReady();
+    
+    // Destroy existing charts
+    destroyExistingCharts();
+    
+    const { textColor, gridColor, lineColor, lineFill } = getChartThemeColors();
+    
+    // 1. Spending Over Time (Line Chart)
+    renderSpendingTimeChart(receipts, textColor, gridColor, lineColor, lineFill);
+    
+    // 2. Category Pie Chart
+    renderCategoryPieChart(receipts, textColor);
+    
+    // 3. Monthly Trends
+    renderMonthlyTrendsChart(receipts, textColor, gridColor);
+    
+    // 4. Top Vendors
+    renderTopVendorsChart(receipts, textColor, gridColor);
+    
+    // 5. Daily Average
+    renderDailyAverageChart(receipts, textColor, gridColor);
+}
+
+function renderSpendingTimeChart(receipts, textColor, gridColor, lineColor, lineFill) {
+    const dailyTotals = {};
+    receipts.forEach(r => {
+        const d = parseReceiptDate(r.date);
+        if (isNaN(d)) return;
+        const key = d.toISOString().split('T')[0];
+        dailyTotals[key] = (dailyTotals[key] || 0) + (r.total || 0);
+    });
+    
+    const sortedDates = Object.keys(dailyTotals).sort();
+    const dailyValues = sortedDates.map(d => Number(dailyTotals[d].toFixed(2)));
+    
+    const ctx = document.getElementById('spendingTimeChart').getContext('2d');
+    window.analyticsCharts.timeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sortedDates,
+            datasets: [{
+                label: 'Daily Spending',
+                data: dailyValues,
+                borderColor: lineColor,
+                backgroundColor: lineFill,
+                fill: true,
+                tension: 0.25
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor } } },
+            scales: {
+                x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                y: { 
+                    ticks: { color: textColor, callback: v => formatCurrency(v) },
+                    grid: { color: gridColor }
+                }
+            }
+        }
+    });
+}
+
+function renderCategoryPieChart(receipts, textColor) {
+    const categoryTotals = {};
+    receipts.forEach(r => {
+        const cat = r.category || 'Uncategorized';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + (r.total || 0);
+    });
+    
+    const categories = Object.keys(categoryTotals);
+    const values = categories.map(c => Number(categoryTotals[c].toFixed(2)));
+    const colors = generateColors(categories.length);
+    
+    const ctx = document.getElementById('categoryPieChart').getContext('2d');
+    window.analyticsCharts.categoryPieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categories,
+            datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: 'rgba(255,255,255,0.1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    labels: { color: textColor },
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function renderMonthlyTrendsChart(receipts, textColor, gridColor) {
+    const monthlyTotals = {};
+    receipts.forEach(r => {
+        const d = parseReceiptDate(r.date);
+        if (isNaN(d)) return;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthlyTotals[key] = (monthlyTotals[key] || 0) + (r.total || 0);
+    });
+    
+    const sortedMonths = Object.keys(monthlyTotals).sort();
+    const monthlyValues = sortedMonths.map(m => Number(monthlyTotals[m].toFixed(2)));
+    
+    const ctx = document.getElementById('monthlyTrendsChart').getContext('2d');
+    window.analyticsCharts.monthlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sortedMonths,
+            datasets: [{
+                label: 'Monthly Spending',
+                data: monthlyValues,
+                backgroundColor: 'rgba(76,110,245,0.6)',
+                borderColor: '#4c6ef5',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: textColor } } },
+            scales: {
+                x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                y: { 
+                    ticks: { color: textColor, callback: v => formatCurrency(v) },
+                    grid: { color: gridColor }
+                }
+            }
+        }
+    });
+}
+
+function renderTopVendorsChart(receipts, textColor, gridColor) {
+    const vendorTotals = {};
+    receipts.forEach(r => {
+        const vendor = r.vendor || 'Unknown';
+        vendorTotals[vendor] = (vendorTotals[vendor] || 0) + (r.total || 0);
+    });
+    
+    const sortedVendors = Object.entries(vendorTotals)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10);
+    
+    const vendors = sortedVendors.map(([vendor]) => vendor);
+    const values = sortedVendors.map(([,total]) => Number(total.toFixed(2)));
+    
+    const ctx = document.getElementById('topVendorsChart').getContext('2d');
+    window.analyticsCharts.vendorsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: vendors,
+            datasets: [{
+                label: 'Amount Spent',
+                data: values,
+                backgroundColor: generateColors(vendors.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { 
+                    ticks: { color: textColor, callback: v => formatCurrency(v) },
+                    grid: { color: gridColor }
+                },
+                y: { ticks: { color: textColor }, grid: { color: gridColor } }
+            }
+        }
+    });
+}
+
+function renderDailyAverageChart(receipts, textColor, gridColor) {
+    // Calculate daily averages by day of week
+    const dayTotals = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    receipts.forEach(r => {
+        const d = parseReceiptDate(r.date);
+        if (isNaN(d)) return;
+        const dayOfWeek = d.getDay();
+        dayTotals[dayOfWeek].push(r.total || 0);
+    });
+    
+    const dayAverages = Object.keys(dayTotals).map(day => {
+        const totals = dayTotals[day];
+        return totals.length > 0 ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+    });
+    
+    // Find max value for better scaling
+    const maxValue = Math.max(...dayAverages);
+    const suggestedMax = Math.ceil(maxValue / 10) * 10; // Round up to nearest 10
+    
+    // Get theme-appropriate colors with better contrast
+    const theme = getCurrentTheme();
+    const labelColor = theme === 'light' ? '#1e1e1e' : '#ffffff';
+    const gridColorAlpha = theme === 'light' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)';
+    const tickColor = theme === 'light' ? '#666666' : '#cccccc';
+    
+    const ctx = document.getElementById('dailyAverageChart').getContext('2d');
+    window.analyticsCharts.dailyChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: dayNames,
+            datasets: [{
+                label: 'Avg Daily Spending',
+                data: dayAverages,
+                borderColor: '#4c6ef5',
+                backgroundColor: 'rgba(76,110,245,0.15)',
+                pointBackgroundColor: '#4c6ef5',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { 
+                    display: false
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: suggestedMax > 0 ? suggestedMax : 100,
+                    ticks: { 
+                        color: tickColor,
+                        stepSize: suggestedMax > 0 ? Math.ceil(suggestedMax / 5) : 20,
+                        font: {
+                            size: 11,
+                            weight: '500'
+                        },
+                        callback: function(value) {
+                            return '$' + value.toFixed(0);
+                        },
+                        backdropColor: 'transparent'
+                    },
+                    grid: { 
+                        color: gridColorAlpha,
+                        lineWidth: 1
+                    },
+                    pointLabels: { 
+                        color: labelColor,
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        },
+                        padding: 8
+                    },
+                    angleLines: { 
+                        color: gridColorAlpha,
+                        lineWidth: 1
+                    }
+                }
+            },
+            elements: {
+                line: {
+                    borderWidth: 3
+                },
+                point: {
+                    hoverRadius: 7
+                }
+            }
+        }
+    });
+}
+
+function generateSmartInsights(receipts, allReceipts) {
+    const insights = [];
+    
+    // Calculate various metrics for insights
+    const total = receipts.reduce((sum, r) => sum + (r.total || 0), 0);
+    const avgAmount = receipts.length > 0 ? total / receipts.length : 0;
+    
+    // Category analysis
+    const categoryTotals = {};
+    receipts.forEach(r => {
+        const cat = r.category || 'Uncategorized';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + (r.total || 0);
+    });
+    
+    const topCategory = Object.keys(categoryTotals).reduce((a, b) => 
+        categoryTotals[a] > categoryTotals[b] ? a : b, 'None');
+    const topCategoryPercent = total > 0 ? (categoryTotals[topCategory] / total * 100).toFixed(1) : 0;
+    
+    // Vendor analysis
+    const vendorCounts = {};
+    receipts.forEach(r => {
+        const vendor = r.vendor || 'Unknown';
+        vendorCounts[vendor] = (vendorCounts[vendor] || 0) + 1;
+    });
+    const topVendor = Object.keys(vendorCounts).reduce((a, b) => 
+        vendorCounts[a] > vendorCounts[b] ? a : b, 'None');
+    
+    // Generate insights
+    if (receipts.length > 0) {
+        insights.push({
+            icon: 'info',
+            text: `You have ${receipts.length} receipts with an average of ${formatCurrency(avgAmount)} per receipt.`
+        });
+        
+        if (topCategory !== 'None') {
+            insights.push({
+                icon: 'info',
+                text: `${topCategory} is your top spending category, accounting for ${topCategoryPercent}% of expenses.`
+            });
+        }
+        
+        if (topVendor !== 'None' && vendorCounts[topVendor] > 1) {
+            insights.push({
+                icon: 'info',
+                text: `You shop most frequently at ${topVendor} with ${vendorCounts[topVendor]} visits.`
+            });
+        }
+        
+        // Spending pattern insights
+        const recentReceipts = receipts.filter(r => {
+            const d = parseReceiptDate(r.date);
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return d >= weekAgo;
+        });
+        
+        if (recentReceipts.length > 0) {
+            const recentTotal = recentReceipts.reduce((sum, r) => sum + (r.total || 0), 0);
+            const weeklyAvg = recentTotal / 7;
+            insights.push({
+                icon: weeklyAvg > avgAmount ? 'warning' : 'success',
+                text: `Your daily average this week is ${formatCurrency(weeklyAvg)}.`
+            });
+        }
+        
+        // Large purchase detection
+        const largePurchases = receipts.filter(r => r.total > avgAmount * 2);
+        if (largePurchases.length > 0) {
+            insights.push({
+                icon: 'warning',
+                text: `You have ${largePurchases.length} purchases above ${formatCurrency(avgAmount * 2)}.`
+            });
+        }
+    } else {
+        insights.push({
+            icon: 'info',
+            text: 'No receipts found for the selected time period.'
+        });
+    }
+    
+    // Render insights
+    const container = document.getElementById('insights-container');
+    container.innerHTML = insights.map(insight => `
+        <div class="insight-item">
+            <div class="insight-icon ${insight.icon}"></div>
+            <span>${insight.text}</span>
+        </div>
+    `).join('');
+}
+
+function generateColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+        const hue = Math.floor((360 / count) * i);
+        colors.push(`hsl(${hue}, 70%, 60%)`);
+    }
+    return colors;
+}
+
+async function ensureChartReady() {
+    if (window.Chart) return;
+    try {
+        const mod = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.esm.js');
+        mod.Chart.register(...mod.registerables);
+        window.Chart = mod.Chart;
+    } catch (e) {
+        console.error('Failed to load Chart.js', e);
+        throw e;
+    }
+}
+
+function destroyExistingCharts() {
+    window.analyticsCharts = window.analyticsCharts || {};
+    Object.values(window.analyticsCharts).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+        }
+    });
+    window.analyticsCharts = {};
 }
 
 function startStatusChecks() {
@@ -503,7 +887,13 @@ async function loadSettings(){
         // If currently on analytics page, reload to apply chart theme
         const active=document.querySelector('.nav-item.active[data-page="analytics"]');
         if(active){
-            loadAnalytics();
+            // Get current date range filter
+            const activeRange = document.querySelector('.date-range-btn.active');
+            if (activeRange && window.currentAnalyticsData) {
+                const range = activeRange.dataset.range;
+                const filteredReceipts = filterReceiptsByDateRange(window.currentAnalyticsData, range);
+                renderAllCharts(filteredReceipts);
+            }
         }
     });
 }

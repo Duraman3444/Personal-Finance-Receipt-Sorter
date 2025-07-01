@@ -166,6 +166,158 @@
         .theme-light, .theme-light h2, .theme-light p, .theme-light a, .theme-light .status-text, .theme-light th, .theme-light td, .theme-light .btn  {
             color: #1e1e1e !important;
         }
+
+        /* Analytics specific styles */
+        .analytics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .date-range-selector {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .date-range-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-color, white);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .date-range-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .date-range-btn.active {
+            background: #4c6ef5;
+            border-color: #4c6ef5;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-color, white);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-color, rgba(255, 255, 255, 0.8));
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .stat-change.positive {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+
+        .stat-change.negative {
+            background: rgba(81, 207, 102, 0.2);
+            color: #51cf66;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-color, white);
+            margin-bottom: 1rem;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
+        .full-width-chart {
+            grid-column: 1 / -1;
+        }
+
+        .insights-section {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .insight-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .insight-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+
+        .insight-icon.info { background: #339af0; }
+        .insight-icon.warning { background: #ffd43b; }
+        .insight-icon.success { background: #51cf66; }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .analytics-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
     </style>
 </head>
 <body>
@@ -235,9 +387,84 @@
             </div>
 
             <div id="analytics-page" style="display: none;">
-                <div class="welcome-card">
-                    <h2>Spending Analytics</h2>
-                    <p>View your spending trends and insights...</p>
+                <div class="analytics-header">
+                    <h2>📈 Spending Analytics</h2>
+                    <div class="date-range-selector">
+                        <button class="date-range-btn active" data-range="all">All Time</button>
+                        <button class="date-range-btn" data-range="30">Last 30 Days</button>
+                        <button class="date-range-btn" data-range="90">Last 3 Months</button>
+                        <button class="date-range-btn" data-range="365">This Year</button>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-spent">$0</div>
+                        <div class="stat-label">Total Spent</div>
+                        <div class="stat-change" id="total-change">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-receipts">0</div>
+                        <div class="stat-label">Total Receipts</div>
+                        <div class="stat-change" id="receipts-change">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avg-receipt">$0</div>
+                        <div class="stat-label">Avg per Receipt</div>
+                        <div class="stat-change" id="avg-change">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="top-category">--</div>
+                        <div class="stat-label">Top Category</div>
+                        <div class="stat-change" id="category-change">--</div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card full-width-chart">
+                        <div class="chart-title">Spending Over Time</div>
+                        <div class="chart-wrapper">
+                            <canvas id="spendingTimeChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-title">Category Breakdown</div>
+                        <div class="chart-wrapper">
+                            <canvas id="categoryPieChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-title">Monthly Trends</div>
+                        <div class="chart-wrapper">
+                            <canvas id="monthlyTrendsChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-title">Top Vendors</div>
+                        <div class="chart-wrapper">
+                            <canvas id="topVendorsChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-title">Daily Average</div>
+                        <div class="chart-wrapper">
+                            <canvas id="dailyAverageChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insights-section">
+                    <h3 class="chart-title">💡 Smart Insights</h3>
+                    <div id="insights-container">
+                        <div class="insight-item">
+                            <div class="insight-icon info"></div>
+                            <span>Loading insights...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
