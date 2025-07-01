@@ -682,7 +682,8 @@ function setupExportDropdown() {
     };
 }
 
-async function exportCategories(format) {
+// Make export functions globally accessible
+window.exportCategories = async function exportCategories(format) {
     try {
         // Close the dropdown
         document.querySelector('.dropdown').classList.remove('open');
@@ -738,7 +739,10 @@ async function exportCategories(format) {
                 ((categoryStats[category.name]?.monthlyTotal || 0) / category.monthlyBudget * 100).toFixed(1) + '%' : 
                 'No Budget',
             averagePerReceipt: categoryStats[category.name]?.count ? 
-                (categoryStats[category.name].total / categoryStats[category.name].count).toFixed(2) : '0.00'
+                (categoryStats[category.name].total / categoryStats[category.name].count).toFixed(2) : '0.00',
+            // Additional details for enhanced CSV
+            monthlyRemaining: category.monthlyBudget ? (category.monthlyBudget - (categoryStats[category.name]?.monthlyTotal || 0)) : '',
+            percentSpent: category.monthlyBudget ? (((categoryStats[category.name]?.monthlyTotal || 0) / category.monthlyBudget) * 100).toFixed(1) + '%' : ''
         }));
         
         if (format === 'csv') {
@@ -758,9 +762,13 @@ async function exportCategories(format) {
 function exportAsCSV(data) {
     const headers = [
         'Category Name',
+        'Color',
+        'Icon',
         'Monthly Budget',
-        'Total Spent',
         'Monthly Spent',
+        'Monthly Remaining',
+        '% Budget Spent',
+        'Total Spent',
         'Receipt Count',
         'Monthly Receipts',
         'Budget Status',
@@ -772,9 +780,13 @@ function exportAsCSV(data) {
         headers.join(','),
         ...data.map(category => [
             `"${category.name}"`,
+            category.color,
+            category.icon,
             category.monthlyBudget || '',
-            category.totalSpent,
             category.monthlySpent,
+            category.monthlyRemaining,
+            category.percentSpent,
+            category.totalSpent,
             category.receiptCount,
             category.monthlyReceiptCount,
             `"${category.budgetStatus}"`,
@@ -795,7 +807,7 @@ function exportAsJSON(data) {
     downloadFile(jsonContent, 'categories-export.json', 'application/json');
 }
 
-async function exportBudgetReport() {
+window.exportBudgetReport = async function exportBudgetReport() {
     try {
         // Close the dropdown
         document.querySelector('.dropdown').classList.remove('open');
