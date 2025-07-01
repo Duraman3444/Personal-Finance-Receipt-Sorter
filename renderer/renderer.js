@@ -147,7 +147,24 @@ async function loadCategories() {
             maxSpending = Math.max(maxSpending, categoryStats[cat].total);
         });
         
-        if (categories.length === 0) {
+        // Create a comprehensive list of all categories (from database + from receipts)
+        const allCategories = [...categories];
+        const existingCategoryNames = new Set(categories.map(c => c.name));
+        
+        // Add categories found in receipts that don't exist in the database
+        Object.keys(categoryStats).forEach(categoryName => {
+            if (!existingCategoryNames.has(categoryName)) {
+                allCategories.push({
+                    id: `receipt-${categoryName.toLowerCase().replace(/\s+/g, '-')}`,
+                    name: categoryName,
+                    color: getColorForCategory(categoryName), // Smart color based on category name
+                    icon: getEmojiForCategory(categoryName), // Smart emoji based on category name
+                    isFromReceipts: true // Flag to identify these categories
+                });
+            }
+        });
+        
+        if (allCategories.length === 0) {
             catGrid.innerHTML = `
                 <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
                     <h3 style="color: rgba(255,255,255,0.8); margin-bottom: 1rem;">No Categories Yet</h3>
@@ -161,29 +178,45 @@ async function loadCategories() {
             return;
         }
         
+        // Sort categories: database categories first, then receipt-only categories
+        allCategories.sort((a, b) => {
+            if (a.isFromReceipts && !b.isFromReceipts) return 1;
+            if (!a.isFromReceipts && b.isFromReceipts) return -1;
+            return a.name.localeCompare(b.name);
+        });
+        
         // Generate category cards
         let html = '';
-        categories.forEach(category => {
+        allCategories.forEach(category => {
             const stats = categoryStats[category.name] || { total: 0, count: 0 };
             const progressPercent = maxSpending > 0 ? (stats.total / maxSpending) * 100 : 0;
             
+            // Show different actions for receipt-only categories
+            const categoryActions = category.isFromReceipts ? 
+                `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
+                        ➕
+                    </button>
+                </div>` :
+                `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                        ✏️
+                    </button>
+                    <button class="btn-category-action" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete Category">
+                        🗑️
+                    </button>
+                </div>`;
+            
             html += `
-                <div class="category-card" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
+                <div class="category-card ${category.isFromReceipts ? 'receipt-only-category' : ''}" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
                     <div class="category-header">
                         <div class="category-icon-name">
                             <div class="category-icon" style="background-color: ${category.color}">
                                 ${category.icon}
                             </div>
-                            <h3 class="category-name">${category.name}</h3>
+                            <h3 class="category-name">${category.name}${category.isFromReceipts ? ' (Auto)' : ''}</h3>
                         </div>
-                        <div class="category-actions">
-                            <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
-                                ✏️
-                            </button>
-                            <button class="btn-category-action" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete Category">
-                                🗑️
-                            </button>
-                        </div>
+                        ${categoryActions}
                     </div>
                     <div class="category-stats">
                         <div class="category-amount">${formatCurrency(stats.total)}</div>
@@ -914,8 +947,20 @@ function formatCurrency(amount, currency = 'USD') {
     }).format(amount);
 }
 
-function formatDate(dateString) {
-    const date = new Date(dateString);
+function formatDate(dateInput) {
+    // Handle Firebase Timestamp objects
+    let date;
+    if (dateInput && typeof dateInput === 'object' && typeof dateInput.toDate === 'function') {
+        date = dateInput.toDate();
+    } else {
+        date = new Date(dateInput);
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+    }
+    
     return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -999,6 +1044,153 @@ const CATEGORY_ICONS = [
     '🛒', '🍽️', '⛽', '🛍️', '⚡', '🏥', '🎬', '🏠', '🚗', '📱',
     '💊', '🎓', '✈️', '🏋️', '🐕', '💰', '🎵', '🍔', '☕', '📄'
 ];
+
+// Smart emoji mapping for auto-detected categories
+function getEmojiForCategory(categoryName) {
+    const name = categoryName.toLowerCase();
+    
+    // Food & Dining
+    if (name.includes('restaurant') || name.includes('dining') || name.includes('food')) return '🍽️';
+    if (name.includes('fast food') || name.includes('burger') || name.includes('pizza')) return '🍔';
+    if (name.includes('coffee') || name.includes('cafe') || name.includes('starbucks')) return '☕';
+    if (name.includes('bar') || name.includes('pub') || name.includes('brewery')) return '🍺';
+    if (name.includes('ice cream') || name.includes('dessert')) return '🍦';
+    
+    // Shopping & Retail
+    if (name.includes('grocery') || name.includes('supermarket') || name.includes('food store')) return '🛒';
+    if (name.includes('shopping') || name.includes('retail') || name.includes('store')) return '🛍️';
+    if (name.includes('clothing') || name.includes('apparel') || name.includes('fashion')) return '👕';
+    if (name.includes('beauty') || name.includes('cosmetic') || name.includes('makeup')) return '💄';
+    if (name.includes('pharmacy') || name.includes('drug') || name.includes('cvs') || name.includes('walgreens')) return '💊';
+    if (name.includes('books') || name.includes('bookstore')) return '📚';
+    
+    // Transportation
+    if (name.includes('gas') || name.includes('fuel') || name.includes('petrol')) return '⛽';
+    if (name.includes('uber') || name.includes('lyft') || name.includes('taxi')) return '🚕';
+    if (name.includes('parking') || name.includes('garage')) return '🅿️';
+    if (name.includes('auto') || name.includes('car') || name.includes('vehicle')) return '🚗';
+    if (name.includes('airline') || name.includes('flight') || name.includes('airport')) return '✈️';
+    if (name.includes('train') || name.includes('subway') || name.includes('metro')) return '🚊';
+    if (name.includes('bus') || name.includes('transit')) return '🚌';
+    
+    // Utilities & Services
+    if (name.includes('electric') || name.includes('power') || name.includes('utility')) return '⚡';
+    if (name.includes('water') || name.includes('sewer')) return '💧';
+    if (name.includes('internet') || name.includes('wifi') || name.includes('broadband')) return '🌐';
+    if (name.includes('phone') || name.includes('mobile') || name.includes('cellular')) return '📱';
+    if (name.includes('insurance')) return '🛡️';
+    if (name.includes('bank') || name.includes('atm') || name.includes('fee')) return '🏦';
+    
+    // Healthcare & Medical
+    if (name.includes('health') || name.includes('medical') || name.includes('doctor')) return '🏥';
+    if (name.includes('dental') || name.includes('dentist')) return '🦷';
+    if (name.includes('vision') || name.includes('optical')) return '👓';
+    if (name.includes('fitness') || name.includes('gym') || name.includes('sport')) return '🏋️';
+    
+    // Entertainment & Recreation
+    if (name.includes('entertainment') || name.includes('movie') || name.includes('cinema')) return '🎬';
+    if (name.includes('music') || name.includes('spotify') || name.includes('streaming')) return '🎵';
+    if (name.includes('game') || name.includes('gaming')) return '🎮';
+    if (name.includes('travel') || name.includes('hotel') || name.includes('vacation')) return '🏨';
+    
+    // Home & Garden
+    if (name.includes('home improvement') || name.includes('hardware') || name.includes('depot')) return '🔨';
+    if (name.includes('garden') || name.includes('plant') || name.includes('nursery')) return '🌱';
+    if (name.includes('furniture') || name.includes('decor')) return '🪑';
+    
+    // Personal Care
+    if (name.includes('pet') || name.includes('vet') || name.includes('animal')) return '🐕';
+    if (name.includes('hair') || name.includes('salon') || name.includes('barber')) return '💇';
+    if (name.includes('spa') || name.includes('massage')) return '💆';
+    
+    // Education & Office
+    if (name.includes('education') || name.includes('school') || name.includes('university')) return '🎓';
+    if (name.includes('office') || name.includes('supplies') || name.includes('stationery')) return '📎';
+    
+    // Technology & Electronics
+    if (name.includes('electronics') || name.includes('tech') || name.includes('computer')) return '💻';
+    if (name.includes('software') || name.includes('app') || name.includes('subscription')) return '💾';
+    
+    // Special categories
+    if (name.includes('wholesale') || name.includes('bulk')) return '📦';
+    if (name.includes('online') || name.includes('amazon') || name.includes('ebay')) return '🌐';
+    if (name.includes('department store') || name.includes('target') || name.includes('walmart')) return '🏪';
+    if (name.includes('uncategorized') || name.includes('other') || name.includes('misc')) return '📄';
+    
+    // Default fallback
+    return '📄';
+}
+
+// Smart color mapping for auto-detected categories
+function getColorForCategory(categoryName) {
+    const name = categoryName.toLowerCase();
+    
+    // Food & Dining - Orange/Red tones
+    if (name.includes('restaurant') || name.includes('dining') || name.includes('food')) return '#fd7e14';
+    if (name.includes('fast food') || name.includes('burger') || name.includes('pizza')) return '#fa5252';
+    if (name.includes('coffee') || name.includes('cafe')) return '#8b4513';
+    if (name.includes('bar') || name.includes('pub') || name.includes('brewery')) return '#ffd43b';
+    
+    // Shopping & Retail - Pink/Purple tones
+    if (name.includes('grocery') || name.includes('supermarket')) return '#51cf66';
+    if (name.includes('shopping') || name.includes('retail') || name.includes('store')) return '#e64980';
+    if (name.includes('clothing') || name.includes('apparel') || name.includes('fashion')) return '#d0bfff';
+    if (name.includes('beauty') || name.includes('cosmetic')) return '#fcc2d7';
+    if (name.includes('pharmacy') || name.includes('drug')) return '#51cf66';
+    if (name.includes('books') || name.includes('bookstore')) return '#845ef7';
+    
+    // Transportation - Blue tones
+    if (name.includes('gas') || name.includes('fuel') || name.includes('petrol')) return '#fa5252';
+    if (name.includes('uber') || name.includes('lyft') || name.includes('taxi')) return '#ffd43b';
+    if (name.includes('auto') || name.includes('car') || name.includes('vehicle')) return '#495057';
+    if (name.includes('airline') || name.includes('flight') || name.includes('airport')) return '#339af0';
+    if (name.includes('parking')) return '#6c757d';
+    
+    // Utilities & Services - Blue/Cyan tones
+    if (name.includes('electric') || name.includes('power') || name.includes('utility')) return '#339af0';
+    if (name.includes('water') || name.includes('sewer')) return '#1c7ed6';
+    if (name.includes('internet') || name.includes('wifi') || name.includes('phone')) return '#364fc7';
+    if (name.includes('insurance')) return '#4c6ef5';
+    if (name.includes('bank') || name.includes('atm') || name.includes('fee')) return '#1864ab';
+    
+    // Healthcare & Medical - Green tones
+    if (name.includes('health') || name.includes('medical') || name.includes('doctor')) return '#37b24d';
+    if (name.includes('dental') || name.includes('dentist')) return '#40c057';
+    if (name.includes('fitness') || name.includes('gym') || name.includes('sport')) return '#20c997';
+    
+    // Entertainment & Recreation - Purple tones
+    if (name.includes('entertainment') || name.includes('movie') || name.includes('cinema')) return '#ae3ec9';
+    if (name.includes('music') || name.includes('streaming')) return '#da77f2';
+    if (name.includes('game') || name.includes('gaming')) return '#7c3aed';
+    if (name.includes('travel') || name.includes('hotel') || name.includes('vacation')) return '#f783ac';
+    
+    // Home & Garden - Brown/Green tones
+    if (name.includes('home improvement') || name.includes('hardware')) return '#e8590c';
+    if (name.includes('garden') || name.includes('plant') || name.includes('nursery')) return '#74b816';
+    if (name.includes('furniture') || name.includes('decor')) return '#a0522d';
+    
+    // Personal Care - Pink tones
+    if (name.includes('pet') || name.includes('vet') || name.includes('animal')) return '#ffa8cc';
+    if (name.includes('hair') || name.includes('salon') || name.includes('barber')) return '#ff8cc8';
+    if (name.includes('spa') || name.includes('massage')) return '#d0bfff';
+    
+    // Education & Office - Dark blue tones
+    if (name.includes('education') || name.includes('school') || name.includes('university')) return '#364fc7';
+    if (name.includes('office') || name.includes('supplies')) return '#495057';
+    
+    // Technology & Electronics - Dark tones
+    if (name.includes('electronics') || name.includes('tech') || name.includes('computer')) return '#495057';
+    if (name.includes('software') || name.includes('app') || name.includes('subscription')) return '#6741d9';
+    
+    // Special categories
+    if (name.includes('wholesale') || name.includes('bulk')) return '#8b5cf6';
+    if (name.includes('online') || name.includes('amazon') || name.includes('ebay')) return '#0ea5e9';
+    if (name.includes('department store') || name.includes('target') || name.includes('walmart')) return '#dc2626';
+    if (name.includes('uncategorized') || name.includes('other') || name.includes('misc')) return '#868e96';
+    
+    // Default fallback
+    return '#868e96';
+}
 
 function setupCategoryModal() {
     const modal = document.getElementById('category-modal');
@@ -1229,6 +1421,28 @@ async function deleteCategory(categoryId) {
     } catch (error) {
         console.error('Error deleting category:', error);
         showNotification('Error deleting category. Please try again.', 'error');
+    }
+}
+
+async function convertToManagedCategory(categoryName) {
+    try {
+        // Open the category modal with the name pre-filled and smart emoji/color
+        const categoryData = {
+            name: categoryName,
+            color: getColorForCategory(categoryName), // Smart color based on category name
+            icon: getEmojiForCategory(categoryName) // Smart emoji based on category name
+        };
+        
+        // Confirm the conversion
+        const confirmed = confirm(`Convert "${categoryName}" to a managed category?\n\nThis will allow you to customize its color, icon, and other properties.`);
+        
+        if (!confirmed) return;
+        
+        openCategoryModal(categoryData);
+        
+    } catch (error) {
+        console.error('Error converting category:', error);
+        showNotification('Error converting category. Please try again.', 'error');
     }
 }
 

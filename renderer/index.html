@@ -453,6 +453,113 @@
             transition: width 0.3s ease;
         }
 
+        /* Category info banner */
+        .category-info-banner {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-left: 4px solid var(--accent-color, #667eea);
+        }
+
+        .info-banner-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-banner-header strong {
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .info-banner-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+            line-height: 1.4;
+        }
+
+        .info-banner-text strong {
+            color: var(--text-color, rgba(255, 255, 255, 0.8));
+        }
+
+        /* Receipt-only category styling */
+        .receipt-only-category {
+            border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.3));
+            opacity: 0.8;
+            position: relative;
+        }
+
+        .receipt-only-category .category-name {
+            font-style: italic;
+        }
+
+        .receipt-only-category::before {
+            content: '🤖';
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        /* Light theme overrides */
+        .theme-light .category-info-banner {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-left: 4px solid var(--accent-color, #667eea);
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-light .info-banner-header strong {
+            color: #1a1a1a;
+        }
+
+        .theme-light .info-banner-text {
+            color: #4a4a4a;
+        }
+
+        .theme-light .info-banner-text strong {
+            color: #2a2a2a;
+        }
+
+        .theme-light .receipt-only-category {
+            border: 1px dashed rgba(0, 0, 0, 0.4);
+        }
+
+        /* Additional light theme category styling */
+        .theme-light .category-card {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-light .category-name {
+            color: #1a1a1a !important;
+        }
+
+        .theme-light .category-amount {
+            color: #4c6ef5 !important;
+        }
+
+        .theme-light .category-count {
+            color: #666666 !important;
+        }
+
+        .theme-light .categories-header h2 {
+            color: #1a1a1a !important;
+        }
+
+        .theme-light .receipt-only-category::before {
+            opacity: 0.8;
+        }
+
+        .theme-light .receipt-only-category .category-name {
+            color: #4a4a4a !important;
+        }
+
         /* Modal Styles */
         .modal {
             display: none;
@@ -888,6 +995,17 @@
                         <span>➕</span>
                         Add Category
                     </button>
+                </div>
+                
+                <div class="category-info-banner">
+                    <div class="info-banner-header">
+                        <span style="font-size: 1.1rem;">ℹ️</span>
+                        <strong>Category Types</strong>
+                    </div>
+                    <div class="info-banner-text">
+                        <strong>Managed Categories:</strong> Categories you've created with custom colors and icons.<br>
+                        <strong>Auto Categories (🤖):</strong> Categories automatically detected from your receipts. Click ➕ to convert them to managed categories.
+                    </div>
                 </div>
                 
                 <div class="categories-grid" id="categories-grid">
