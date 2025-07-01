@@ -1,0 +1,29 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electronAPI', {
+  // App utilities
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  
+  // File system operations
+  openFolder: (folderPath: string) => ipcRenderer.invoke('open-folder', folderPath),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  
+  // Future: Receipt processing APIs will be added here
+  // processReceipt: (filePath: string) => ipcRenderer.invoke('process-receipt', filePath),
+  // getReceipts: () => ipcRenderer.invoke('get-receipts'),
+  // deleteReceipt: (id: string) => ipcRenderer.invoke('delete-receipt', id),
+});
+
+// Type definitions for the exposed API
+declare global {
+  interface Window {
+    electronAPI: {
+      getAppVersion: () => Promise<string>;
+      openFolder: (folderPath: string) => Promise<void>;
+      openExternal: (url: string) => Promise<void>;
+      // Future APIs will be typed here
+    };
+  }
+} 

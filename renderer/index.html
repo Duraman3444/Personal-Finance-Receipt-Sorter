@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Receipt Sorter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem 1rem;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .welcome-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .welcome-card h2 {
+            color: white;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .welcome-card p {
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff6b6b;
+        }
+
+        .status-dot.connected {
+            background: #51cf66;
+        }
+
+        .status-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            padding: 1rem 2rem;
+            background: rgba(0, 0, 0, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧾 Personal Finance Receipt Sorter</h1>
+    </div>
+
+    <div class="main-container">
+        <nav class="sidebar">
+            <a href="#" class="nav-item active" data-page="dashboard">📊 Dashboard</a>
+            <a href="#" class="nav-item" data-page="receipts">🧾 Receipts</a>
+            <a href="#" class="nav-item" data-page="categories">🏷️ Categories</a>
+            <a href="#" class="nav-item" data-page="analytics">📈 Analytics</a>
+            <a href="#" class="nav-item" data-page="settings">⚙️ Settings</a>
+        </nav>
+
+        <main class="content">
+            <div id="dashboard-page">
+                <div class="welcome-card">
+                    <h2>Welcome to Receipt Sorter!</h2>
+                    <p>
+                        Drop your receipt images or PDFs into the inbox folder, and watch as AI automatically 
+                        extracts vendor information, amounts, dates, and categories for your personal finance tracking.
+                    </p>
+                    <p>
+                        <strong>Getting Started:</strong>
+                    </p>
+                    <ul style="color: rgba(255, 255, 255, 0.8); margin-left: 1.5rem; margin-bottom: 1rem;">
+                        <li>Click "Open Inbox Folder" to access your receipt drop zone</li>
+                        <li>Drag and drop receipt images or PDFs</li>
+                        <li>Watch them appear automatically in your receipts list</li>
+                        <li>Review and categorize as needed</li>
+                    </ul>
+                    <button class="btn" id="open-inbox-btn">📁 Open Inbox Folder</button>
+                </div>
+
+                <div class="welcome-card">
+                    <h2>System Status</h2>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="firebase-status"></div>
+                        <span class="status-text">Firebase: <span id="firebase-text">Connecting...</span></span>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="n8n-status"></div>
+                        <span class="status-text">N8N Workflow: <span id="n8n-text">Not Running</span></span>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="openai-status"></div>
+                        <span class="status-text">OpenAI: <span id="openai-text">Ready</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other pages will be added here -->
+            <div id="receipts-page" style="display: none;">
+                <div class="welcome-card">
+                    <h2>Recent Receipts</h2>
+                    <p>Your processed receipts will appear here...</p>
+                </div>
+            </div>
+
+            <div id="categories-page" style="display: none;">
+                <div class="welcome-card">
+                    <h2>Spending Categories</h2>
+                    <p>Manage your spending categories here...</p>
+                </div>
+            </div>
+
+            <div id="analytics-page" style="display: none;">
+                <div class="welcome-card">
+                    <h2>Spending Analytics</h2>
+                    <p>View your spending trends and insights...</p>
+                </div>
+            </div>
+
+            <div id="settings-page" style="display: none;">
+                <div class="welcome-card">
+                    <h2>Settings</h2>
+                    <p>Configure your receipt processing preferences...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="footer">
+        <span id="app-version">Loading version...</span> | FlowGenius Desktop Application Project
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html> 
