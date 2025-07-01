@@ -453,6 +453,231 @@
             transition: width 0.3s ease;
         }
 
+        /* Budget tracking styles */
+        .budget-section {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .budget-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .budget-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .budget-amount {
+            font-weight: 600;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .budget-progress {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 0.25rem;
+        }
+
+        .budget-progress-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        .budget-progress-bar.safe {
+            background: linear-gradient(90deg, #51cf66, #40c057);
+        }
+
+        .budget-progress-bar.warning {
+            background: linear-gradient(90deg, #ffd43b, #fab005);
+        }
+
+        .budget-progress-bar.danger {
+            background: linear-gradient(90deg, #fa5252, #e03131);
+        }
+
+        .budget-status {
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .budget-status.safe {
+            color: #51cf66;
+        }
+
+        .budget-status.warning {
+            color: #ffd43b;
+        }
+
+        .budget-status.danger {
+            color: #fa5252;
+        }
+
+        .budget-remaining {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* Search and filter controls */
+        .categories-controls {
+            margin-bottom: 2rem;
+        }
+
+        .search-filter-section {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box-container {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem 2.5rem 0.75rem 1rem;
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color, #667eea);
+            background: var(--card-bg, rgba(255, 255, 255, 0.15));
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .filter-select {
+            padding: 0.75rem 1rem;
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+            min-width: 150px;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--accent-color, #667eea);
+            background: var(--card-bg, rgba(255, 255, 255, 0.15));
+        }
+
+        .filter-select option {
+            background: #2c2c2c;
+            color: #ffffff;
+        }
+
+        /* Budget Overview Section */
+        .budget-overview {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .budget-overview-header h3 {
+            margin: 0 0 1rem 0;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            font-size: 1.2rem;
+        }
+
+        .budget-overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .budget-stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .budget-stat-label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .budget-stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .budget-overall-progress {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .budget-alerts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .budget-alert {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            border-left: 3px solid;
+        }
+
+        .budget-alert.warning {
+            border-left-color: #ffd43b;
+            color: #ffd43b;
+        }
+
+        .budget-alert.danger {
+            border-left-color: #fa5252;
+            color: #fa5252;
+        }
+
         /* Category info banner */
         .category-info-banner {
             background: var(--card-bg, rgba(255, 255, 255, 0.1));
@@ -558,6 +783,90 @@
 
         .theme-light .receipt-only-category .category-name {
             color: #4a4a4a !important;
+        }
+
+        /* Light theme budget styles */
+        .theme-light .budget-section {
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .budget-label {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .theme-light .budget-amount {
+            color: #1a1a1a;
+        }
+
+        .theme-light .budget-progress {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .budget-remaining {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Light theme search and filter styles */
+        .theme-light .search-input {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            color: #1a1a1a;
+        }
+
+        .theme-light .search-input::placeholder {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .theme-light .search-input:focus {
+            background: rgba(255, 255, 255, 1);
+            border-color: var(--accent-color, #667eea);
+        }
+
+        .theme-light .filter-select {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            color: #1a1a1a;
+        }
+
+        .theme-light .filter-select:focus {
+            background: rgba(255, 255, 255, 1);
+            border-color: var(--accent-color, #667eea);
+        }
+
+        .theme-light .filter-select option {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        /* Light theme budget overview styles */
+        .theme-light .budget-overview {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .budget-overview-header h3 {
+            color: #1a1a1a;
+        }
+
+        .theme-light .budget-stat-card {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .budget-stat-label {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .theme-light .budget-stat-value {
+            color: #1a1a1a;
+        }
+
+        .theme-light .budget-overall-progress {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .budget-alert {
+            background: rgba(0, 0, 0, 0.05);
         }
 
         /* Modal Styles */
@@ -1007,6 +1316,65 @@
                         <strong>Auto Categories (🤖):</strong> Categories automatically detected from your receipts. Click ➕ to convert them to managed categories.
                     </div>
                 </div>
+
+                <div id="budget-overview" class="budget-overview" style="display: none;">
+                    <div class="budget-overview-header">
+                        <h3>📊 Budget Overview - <span id="current-month-name"></span></h3>
+                    </div>
+                    <div class="budget-overview-stats">
+                        <div class="budget-stat-card">
+                            <div class="budget-stat-label">Total Budget</div>
+                            <div class="budget-stat-value" id="total-budget">$0</div>
+                        </div>
+                        <div class="budget-stat-card">
+                            <div class="budget-stat-label">Total Spent</div>
+                            <div class="budget-stat-value" id="total-spent-budget">$0</div>
+                        </div>
+                        <div class="budget-stat-card">
+                            <div class="budget-stat-label">Remaining</div>
+                            <div class="budget-stat-value" id="total-remaining">$0</div>
+                        </div>
+                        <div class="budget-stat-card">
+                            <div class="budget-stat-label">Categories with Budgets</div>
+                            <div class="budget-stat-value" id="budget-categories-count">0</div>
+                        </div>
+                    </div>
+                    <div class="budget-overview-progress">
+                        <div class="budget-overall-progress">
+                            <div id="budget-overall-bar" class="budget-progress-bar safe" style="width: 0%"></div>
+                        </div>
+                        <div class="budget-alerts" id="budget-alerts"></div>
+                    </div>
+                </div>
+
+                <div class="categories-controls">
+                    <div class="search-filter-section">
+                        <div class="search-box-container">
+                            <input type="text" id="category-search" class="search-input" placeholder="Search categories...">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                        
+                        <div class="filter-controls">
+                            <select id="sort-categories" class="filter-select">
+                                <option value="name">Sort by Name</option>
+                                <option value="amount-desc">Amount (High to Low)</option>
+                                <option value="amount-asc">Amount (Low to High)</option>
+                                <option value="receipts-desc">Most Receipts</option>
+                                <option value="receipts-asc">Fewest Receipts</option>
+                                <option value="budget-status">Budget Status</option>
+                            </select>
+                            
+                            <select id="filter-categories" class="filter-select">
+                                <option value="all">All Categories</option>
+                                <option value="managed">Managed Only</option>
+                                <option value="auto">Auto Only</option>
+                                <option value="with-budget">With Budget</option>
+                                <option value="over-budget">Over Budget</option>
+                                <option value="no-receipts">No Receipts</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="categories-grid" id="categories-grid">
                     <!-- Categories will be loaded here -->
@@ -1039,6 +1407,12 @@
                             <div class="color-icon-grid" id="icon-options">
                                 <!-- Icon options will be generated -->
                             </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="category-budget">Monthly Budget (Optional)</label>
+                            <input type="number" id="category-budget" class="form-input" placeholder="Enter monthly budget amount" min="0" step="0.01">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Leave empty for no budget tracking</small>
                         </div>
                         
                         <div class="modal-buttons">

@@ -135,16 +135,33 @@ async function loadCategories() {
         
         // Calculate spending totals and counts per category
         const categoryStats = {};
+        const currentMonthStats = {};
         let maxSpending = 0;
+        
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
         
         receipts.forEach(r => {
             const cat = r.category || 'Uncategorized';
             if (!categoryStats[cat]) {
                 categoryStats[cat] = { total: 0, count: 0 };
+                currentMonthStats[cat] = { total: 0, count: 0 };
             }
+            
+            // All-time stats
             categoryStats[cat].total += (r.total || 0);
             categoryStats[cat].count += 1;
             maxSpending = Math.max(maxSpending, categoryStats[cat].total);
+            
+            // Current month stats for budget tracking
+            const receiptDate = parseReceiptDate(r.date);
+            if (receiptDate && 
+                receiptDate.getMonth() === currentMonth && 
+                receiptDate.getFullYear() === currentYear) {
+                currentMonthStats[cat].total += (r.total || 0);
+                currentMonthStats[cat].count += 1;
+            }
         });
         
         // Create a comprehensive list of all categories (from database + from receipts)
@@ -189,7 +206,25 @@ async function loadCategories() {
         let html = '';
         allCategories.forEach(category => {
             const stats = categoryStats[category.name] || { total: 0, count: 0 };
+            const monthlyStats = currentMonthStats[category.name] || { total: 0, count: 0 };
             const progressPercent = maxSpending > 0 ? (stats.total / maxSpending) * 100 : 0;
+            
+            // Budget calculations
+            const hasBudget = category.monthlyBudget && category.monthlyBudget > 0;
+            let budgetProgress = 0;
+            let budgetStatus = 'safe';
+            let budgetRemaining = 0;
+            
+            if (hasBudget) {
+                budgetProgress = Math.min((monthlyStats.total / category.monthlyBudget) * 100, 100);
+                budgetRemaining = category.monthlyBudget - monthlyStats.total;
+                
+                if (budgetProgress >= 100) {
+                    budgetStatus = 'danger';
+                } else if (budgetProgress >= 80) {
+                    budgetStatus = 'warning';
+                }
+            }
             
             // Show different actions for receipt-only categories
             const categoryActions = category.isFromReceipts ? 
@@ -206,6 +241,31 @@ async function loadCategories() {
                         🗑️
                     </button>
                 </div>`;
+            
+            const budgetSection = hasBudget ? `
+                <div class="budget-section">
+                    <div class="budget-info">
+                        <span class="budget-label">Monthly Budget</span>
+                        <span class="budget-amount">${formatCurrency(category.monthlyBudget)}</span>
+                    </div>
+                    <div class="budget-progress">
+                        <div class="budget-progress-bar ${budgetStatus}" style="width: ${budgetProgress}%"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="budget-status ${budgetStatus}">
+                            ${budgetProgress >= 100 ? 'Over Budget!' : 
+                              budgetProgress >= 80 ? 'Near Limit' : 'On Track'}
+                        </span>
+                        <span class="budget-remaining">
+                            ${budgetRemaining >= 0 ? 
+                                `${formatCurrency(budgetRemaining)} left` : 
+                                `${formatCurrency(Math.abs(budgetRemaining))} over`}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 0.25rem;">
+                        Spent: ${formatCurrency(monthlyStats.total)} this month
+                    </div>
+                </div>` : '';
             
             html += `
                 <div class="category-card ${category.isFromReceipts ? 'receipt-only-category' : ''}" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
@@ -225,6 +285,7 @@ async function loadCategories() {
                     <div class="category-progress">
                         <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
                     </div>
+                    ${budgetSection}
                 </div>
             `;
         });
@@ -234,6 +295,12 @@ async function loadCategories() {
         // Set up modal if not already done
         setupCategoryModal();
         
+        // Set up budget overview
+        setupBudgetOverview(allCategories, currentMonthStats);
+        
+        // Set up search and filter functionality
+        setupCategorySearchAndFilter(allCategories, categoryStats, currentMonthStats, maxSpending);
+        
     } catch(err) {
         console.error('Error loading categories:', err);
         catGrid.innerHTML = `
@@ -242,6 +309,279 @@ async function loadCategories() {
                 <p style="color: rgba(255,255,255,0.6);">Unable to load categories. Please try again.</p>
             </div>
         `;
+    }
+}
+
+// Search and filter functionality for categories
+function setupCategorySearchAndFilter(allCategories, categoryStats, currentMonthStats, maxSpending) {
+    const searchInput = document.getElementById('category-search');
+    const sortSelect = document.getElementById('sort-categories');
+    const filterSelect = document.getElementById('filter-categories');
+    
+    if (!searchInput || !sortSelect || !filterSelect) return;
+    
+    let filteredCategories = [...allCategories];
+    
+    function applyFiltersAndSort() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const sortBy = sortSelect.value;
+        const filterBy = filterSelect.value;
+        
+        // Filter categories
+        filteredCategories = allCategories.filter(category => {
+            // Search filter
+            if (searchTerm && !category.name.toLowerCase().includes(searchTerm)) {
+                return false;
+            }
+            
+            // Type filter
+            if (filterBy === 'managed' && category.isFromReceipts) return false;
+            if (filterBy === 'auto' && !category.isFromReceipts) return false;
+            if (filterBy === 'with-budget' && (!category.monthlyBudget || category.monthlyBudget <= 0)) return false;
+            if (filterBy === 'no-receipts') {
+                const stats = categoryStats[category.name] || { count: 0 };
+                if (stats.count > 0) return false;
+            }
+            if (filterBy === 'over-budget') {
+                if (!category.monthlyBudget || category.monthlyBudget <= 0) return false;
+                const monthlyStats = currentMonthStats[category.name] || { total: 0 };
+                if (monthlyStats.total <= category.monthlyBudget) return false;
+            }
+            
+            return true;
+        });
+        
+        // Sort categories
+        filteredCategories.sort((a, b) => {
+            const aStats = categoryStats[a.name] || { total: 0, count: 0 };
+            const bStats = categoryStats[b.name] || { total: 0, count: 0 };
+            const aMonthlyStats = currentMonthStats[a.name] || { total: 0 };
+            const bMonthlyStats = currentMonthStats[b.name] || { total: 0 };
+            
+            switch (sortBy) {
+                case 'name':
+                    return a.name.localeCompare(b.name);
+                case 'amount-desc':
+                    return bStats.total - aStats.total;
+                case 'amount-asc':
+                    return aStats.total - bStats.total;
+                case 'receipts-desc':
+                    return bStats.count - aStats.count;
+                case 'receipts-asc':
+                    return aStats.count - bStats.count;
+                case 'budget-status':
+                    // Sort by budget status: over budget > near limit > on track > no budget
+                    const getBudgetSortValue = (cat, monthlyStats) => {
+                        if (!cat.monthlyBudget || cat.monthlyBudget <= 0) return 0; // No budget
+                        const progress = (monthlyStats.total / cat.monthlyBudget) * 100;
+                        if (progress >= 100) return 4; // Over budget
+                        if (progress >= 80) return 3; // Near limit
+                        return 2; // On track
+                    };
+                    return getBudgetSortValue(b, bMonthlyStats) - getBudgetSortValue(a, aMonthlyStats);
+                default:
+                    // Default: managed categories first, then by name
+                    if (a.isFromReceipts && !b.isFromReceipts) return 1;
+                    if (!a.isFromReceipts && b.isFromReceipts) return -1;
+                    return a.name.localeCompare(b.name);
+            }
+        });
+        
+        renderFilteredCategories();
+    }
+    
+    function renderFilteredCategories() {
+        const catGrid = document.querySelector('#categories-grid');
+        if (!catGrid) return;
+        
+        if (filteredCategories.length === 0) {
+            catGrid.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
+                    <h3 style="color: rgba(255,255,255,0.8); margin-bottom: 1rem;">No Categories Found</h3>
+                    <p style="color: rgba(255,255,255,0.6);">Try adjusting your search or filter settings.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Generate HTML for filtered categories (reuse the same logic from loadCategories)
+        let html = '';
+        filteredCategories.forEach(category => {
+            const stats = categoryStats[category.name] || { total: 0, count: 0 };
+            const monthlyStats = currentMonthStats[category.name] || { total: 0, count: 0 };
+            const progressPercent = maxSpending > 0 ? (stats.total / maxSpending) * 100 : 0;
+            
+            // Budget calculations
+            const hasBudget = category.monthlyBudget && category.monthlyBudget > 0;
+            let budgetProgress = 0;
+            let budgetStatus = 'safe';
+            let budgetRemaining = 0;
+            
+            if (hasBudget) {
+                budgetProgress = Math.min((monthlyStats.total / category.monthlyBudget) * 100, 100);
+                budgetRemaining = category.monthlyBudget - monthlyStats.total;
+                
+                if (budgetProgress >= 100) {
+                    budgetStatus = 'danger';
+                } else if (budgetProgress >= 80) {
+                    budgetStatus = 'warning';
+                }
+            }
+            
+            // Show different actions for receipt-only categories
+            const categoryActions = category.isFromReceipts ? 
+                `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
+                        ➕
+                    </button>
+                </div>` :
+                `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                        ✏️
+                    </button>
+                    <button class="btn-category-action" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete Category">
+                        🗑️
+                    </button>
+                </div>`;
+            
+            const budgetSection = hasBudget ? `
+                <div class="budget-section">
+                    <div class="budget-info">
+                        <span class="budget-label">Monthly Budget</span>
+                        <span class="budget-amount">${formatCurrency(category.monthlyBudget)}</span>
+                    </div>
+                    <div class="budget-progress">
+                        <div class="budget-progress-bar ${budgetStatus}" style="width: ${budgetProgress}%"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="budget-status ${budgetStatus}">
+                            ${budgetProgress >= 100 ? 'Over Budget!' : 
+                              budgetProgress >= 80 ? 'Near Limit' : 'On Track'}
+                        </span>
+                        <span class="budget-remaining">
+                            ${budgetRemaining >= 0 ? 
+                                `${formatCurrency(budgetRemaining)} left` : 
+                                `${formatCurrency(Math.abs(budgetRemaining))} over`}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 0.25rem;">
+                        Spent: ${formatCurrency(monthlyStats.total)} this month
+                    </div>
+                </div>` : '';
+            
+            html += `
+                <div class="category-card ${category.isFromReceipts ? 'receipt-only-category' : ''}" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
+                    <div class="category-header">
+                        <div class="category-icon-name">
+                            <div class="category-icon" style="background-color: ${category.color}">
+                                ${category.icon}
+                            </div>
+                            <h3 class="category-name">${category.name}${category.isFromReceipts ? ' (Auto)' : ''}</h3>
+                        </div>
+                        ${categoryActions}
+                    </div>
+                    <div class="category-stats">
+                        <div class="category-amount">${formatCurrency(stats.total)}</div>
+                        <div class="category-count">${stats.count} receipt${stats.count !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div class="category-progress">
+                        <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
+                    </div>
+                    ${budgetSection}
+                </div>
+            `;
+        });
+        
+        catGrid.innerHTML = html;
+    }
+    
+    // Set up event listeners
+    searchInput.addEventListener('input', applyFiltersAndSort);
+    sortSelect.addEventListener('change', applyFiltersAndSort);
+    filterSelect.addEventListener('change', applyFiltersAndSort);
+    
+    // Apply initial filter/sort
+    applyFiltersAndSort();
+}
+
+// Budget Overview functionality
+function setupBudgetOverview(allCategories, currentMonthStats) {
+    const budgetOverview = document.getElementById('budget-overview');
+    const currentMonthName = document.getElementById('current-month-name');
+    const totalBudgetEl = document.getElementById('total-budget');
+    const totalSpentEl = document.getElementById('total-spent-budget');
+    const totalRemainingEl = document.getElementById('total-remaining');
+    const budgetCategoriesCountEl = document.getElementById('budget-categories-count');
+    const budgetOverallBarEl = document.getElementById('budget-overall-bar');
+    const budgetAlertsEl = document.getElementById('budget-alerts');
+    
+    if (!budgetOverview) return;
+    
+    // Calculate budget statistics
+    const budgetCategories = allCategories.filter(cat => cat.monthlyBudget && cat.monthlyBudget > 0);
+    
+    if (budgetCategories.length === 0) {
+        budgetOverview.style.display = 'none';
+        return;
+    }
+    
+    budgetOverview.style.display = 'block';
+    
+    // Set current month name
+    const currentDate = new Date();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    currentMonthName.textContent = monthNames[currentDate.getMonth()];
+    
+    // Calculate totals
+    let totalBudget = 0;
+    let totalSpent = 0;
+    const alerts = [];
+    
+    budgetCategories.forEach(category => {
+        totalBudget += category.monthlyBudget;
+        const monthlyStats = currentMonthStats[category.name] || { total: 0 };
+        totalSpent += monthlyStats.total;
+        
+        // Check for budget alerts
+        const progress = (monthlyStats.total / category.monthlyBudget) * 100;
+        if (progress >= 100) {
+            alerts.push({
+                type: 'danger',
+                message: `${category.name}: Over budget by ${formatCurrency(monthlyStats.total - category.monthlyBudget)}`
+            });
+        } else if (progress >= 80) {
+            alerts.push({
+                type: 'warning',
+                message: `${category.name}: Near budget limit (${Math.round(progress)}%)`
+            });
+        }
+    });
+    
+    const totalRemaining = totalBudget - totalSpent;
+    const overallProgress = Math.min((totalSpent / totalBudget) * 100, 100);
+    
+    // Update display
+    totalBudgetEl.textContent = formatCurrency(totalBudget);
+    totalSpentEl.textContent = formatCurrency(totalSpent);
+    totalRemainingEl.textContent = formatCurrency(totalRemaining);
+    totalRemainingEl.style.color = totalRemaining >= 0 ? '#51cf66' : '#fa5252';
+    budgetCategoriesCountEl.textContent = budgetCategories.length.toString();
+    
+    // Update overall progress bar
+    budgetOverallBarEl.style.width = `${overallProgress}%`;
+    budgetOverallBarEl.className = `budget-progress-bar ${
+        overallProgress >= 100 ? 'danger' : 
+        overallProgress >= 80 ? 'warning' : 'safe'
+    }`;
+    
+    // Update alerts
+    if (alerts.length > 0) {
+        budgetAlertsEl.innerHTML = alerts.map(alert => 
+            `<div class="budget-alert ${alert.type}">${alert.message}</div>`
+        ).join('');
+    } else {
+        budgetAlertsEl.innerHTML = '<div style="color: #51cf66; font-size: 0.9rem;">🎉 All budgets are on track!</div>';
     }
 }
 
@@ -1288,6 +1628,7 @@ function openCategoryModal(categoryData = null) {
     const modal = document.getElementById('category-modal');
     const modalTitle = document.getElementById('modal-title');
     const categoryNameInput = document.getElementById('category-name');
+    const budgetInput = document.getElementById('category-budget');
     const saveBtn = document.getElementById('save-btn');
     
     console.log('Modal elements found:', { modal, modalTitle, categoryNameInput, saveBtn });
@@ -1306,6 +1647,7 @@ function openCategoryModal(categoryData = null) {
         currentEditingCategoryId = categoryData.id;
         modalTitle.textContent = 'Edit Category';
         categoryNameInput.value = categoryData.name;
+        budgetInput.value = categoryData.monthlyBudget || '';
         saveBtn.textContent = 'Update Category';
         
         // Select the category's color and icon
@@ -1316,6 +1658,7 @@ function openCategoryModal(categoryData = null) {
         currentEditingCategoryId = null;
         modalTitle.textContent = 'Add New Category';
         categoryNameInput.value = '';
+        budgetInput.value = '';
         saveBtn.textContent = 'Save Category';
         
         // Select default color and icon
@@ -1339,6 +1682,7 @@ async function handleCategorySubmit(e) {
     e.preventDefault();
     
     const nameInput = document.getElementById('category-name');
+    const budgetInput = document.getElementById('category-budget');
     const selectedColor = document.querySelector('.color-option.selected')?.dataset.color;
     const selectedIcon = document.querySelector('.icon-option.selected')?.dataset.icon;
     
@@ -1350,7 +1694,8 @@ async function handleCategorySubmit(e) {
     const categoryData = {
         name: nameInput.value.trim(),
         color: selectedColor,
-        icon: selectedIcon
+        icon: selectedIcon,
+        monthlyBudget: budgetInput.value ? parseFloat(budgetInput.value) : null
     };
     
     try {
