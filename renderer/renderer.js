@@ -610,22 +610,76 @@ function setupBudgetOverview(allCategories, currentMonthStats) {
 
 // Export functionality
 function setupExportDropdown() {
+    console.log('Setting up export dropdown...');
+    
     const exportBtn = document.getElementById('export-btn');
     const dropdown = exportBtn?.parentElement;
+    const dropdownMenu = dropdown?.querySelector('.dropdown-menu');
     
-    if (!exportBtn || !dropdown) return;
+    if (!exportBtn || !dropdown || !dropdownMenu) {
+        console.error('Export dropdown elements not found:', { 
+            exportBtn: !!exportBtn, 
+            dropdown: !!dropdown, 
+            dropdownMenu: !!dropdownMenu 
+        });
+        return;
+    }
     
-    exportBtn.addEventListener('click', (e) => {
+    console.log('Export dropdown elements found, setting up event listener');
+    
+    // Clear any existing click handlers
+    exportBtn.onclick = null;
+    exportBtn.removeAttribute('data-setup');
+    
+    // Add click handler
+    exportBtn.addEventListener('click', function(e) {
+        e.preventDefault();
         e.stopPropagation();
-        dropdown.classList.toggle('open');
+        
+        console.log('Export button clicked!');
+        
+        // Toggle the dropdown
+        const isCurrentlyOpen = dropdown.classList.contains('open');
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        
+        if (!isCurrentlyOpen) {
+            dropdown.classList.add('open');
+            console.log('Dropdown opened');
+        } else {
+            dropdown.classList.remove('open');
+            console.log('Dropdown closed');
+        }
     });
     
     // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         if (!dropdown.contains(e.target)) {
             dropdown.classList.remove('open');
         }
     });
+    
+    console.log('Export dropdown setup complete');
+    
+    // Add debug function for testing
+    window.testDropdown = function() {
+        console.log('Testing dropdown manually...');
+        const btn = document.getElementById('export-btn');
+        const dropdown = btn?.parentElement;
+        const menu = dropdown?.querySelector('.dropdown-menu');
+        
+        console.log('Elements found:', { 
+            button: !!btn, 
+            dropdown: !!dropdown, 
+            menu: !!menu 
+        });
+        
+        if (dropdown) {
+            dropdown.classList.toggle('open');
+            console.log('Dropdown toggled, classes:', dropdown.className);
+        }
+    };
 }
 
 async function exportCategories(format) {

@@ -617,7 +617,25 @@
         }
 
         .dropdown.open .dropdown-menu {
-            display: block;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        /* Emergency backup styles for dropdown */
+        .dropdown-menu[style*="display: block"] {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: absolute !important;
+            top: 100% !important;
+            right: 0 !important;
+            z-index: 9999 !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 8px !important;
+            min-width: 200px !important;
+            padding: 0.5rem 0 !important;
         }
 
         .dropdown-item {

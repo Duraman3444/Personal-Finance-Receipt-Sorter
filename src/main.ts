@@ -200,14 +200,16 @@ class ReceiptSorterApp {
           const req = http.request({
             hostname: 'localhost',
             port: 5678,
-            path: '/rest/active',
+            path: '/',
             method: 'GET',
             timeout: 2000
           }, (res) => {
+            // N8N is running if we get ANY response (200, 401, etc.)
+            // The main page should return 200, even if REST API requires auth
             resolve({ 
               success: true, 
               connected: true, 
-              running: res.statusCode === 200 
+              running: true
             });
           });
 
