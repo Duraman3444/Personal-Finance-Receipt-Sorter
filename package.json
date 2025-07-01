@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "npm run build && electron .",
     "dev": "tsc && electron .",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"(no unit tests yet)\"",
     "test:openai": "tsc && node dist/scripts/test-parse.js",
     "test:firestore": "tsc && node dist/scripts/firestore-test.js",
     "webhook": "tsc && node dist/scripts/webhook-server.js",

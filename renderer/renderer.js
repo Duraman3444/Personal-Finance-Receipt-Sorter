@@ -4,6 +4,9 @@ const pages = document.querySelectorAll('[id$="-page"]');
 const openInboxBtn = document.getElementById('open-inbox-btn');
 const appVersionSpan = document.getElementById('app-version');
 
+// Global preferences cache
+let userPrefs = { defaultCurrency: 'USD', showNotifications: true };
+
 // Status indicators
 const firebaseStatus = document.getElementById('firebase-status');
 const firebaseText = document.getElementById('firebase-text');
@@ -27,9 +30,18 @@ async function initializeApp() {
         
         console.log('Receipt Sorter initialized successfully');
 
+        // Load preferences
+        userPrefs = await window.electronAPI.getPreferences();
+
         // Apply saved theme
         const savedTheme = localStorage.getItem('theme') || 'default';
         applyTheme(savedTheme);
+
+        // Check for missing environment variables and alert user
+        const missing = await window.electronAPI.getMissingEnvs();
+        if (Array.isArray(missing) && missing.length > 0) {
+            showNotification(`Missing environment variables: ${missing.join(', ')}. Please create a .env file or set them in your system environment.`, 'error');
+        }
     } catch (error) {
         console.error('Failed to initialize app:', error);
     }
@@ -107,7 +119,7 @@ async function loadReceipts() {
             return;
         }
 
-        let html = '<h2>Recent Receipts</h2><table style="width:100%;border-collapse:collapse;color:white">';
+        let html = '<h2>Recent Receipts</h2><table class="receipts-table" style="width:100%;border-collapse:collapse;color:white">';
         html += '<tr><th align="left">Date</th><th align="left">Vendor</th><th align="right">Total</th><th align="left">Category</th></tr>';
         receipts.forEach(r => {
             html += `<tr style="border-top:1px solid rgba(255,255,255,0.1);"><td>${formatDate(r.date)}</td><td>${r.vendor || ''}</td><td align="right">${formatCurrency(r.total)}</td><td>${r.category || ''}</td></tr>`;
@@ -1657,6 +1669,7 @@ async function checkOpenAIStatus() {
 
 // Utility functions
 function showNotification(message, type = 'info') {
+    if (!userPrefs.showNotifications) return;
     // Determine text colour based on theme
     const theme = getCurrentTheme();
     const txtColor = theme==='light'? '#1e1e1e' : '#ffffff';
@@ -1713,11 +1726,11 @@ function showNotification(message, type = 'info') {
     console.log(`${type.toUpperCase()}: ${message}`);
 }
 
-function formatCurrency(amount, currency = 'USD') {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency
-    }).format(amount);
+function formatCurrency(amount, currency) {
+    if(!currency){
+        currency = userPrefs.defaultCurrency || 'USD';
+    }
+    return amount?.toLocaleString('en-US', { style: 'currency', currency }) || '$0.00';
 }
 
 function formatDate(dateInput) {
@@ -1746,6 +1759,10 @@ async function loadSettings(){
     if(!sCont) return;
     const current=localStorage.getItem('inboxPath')||'inbox';
     const theme = localStorage.getItem('theme')||'default';
+
+    // Load preferences from main process
+    const prefs = await window.electronAPI.getPreferences();
+
     sCont.innerHTML=`<h2>Settings</h2>
     <p>Inbox Folder: <code>${current}</code></p>
     <button class="btn" id="change-inbox-btn">Change Inbox Folder</button>
@@ -1755,7 +1772,17 @@ async function loadSettings(){
        <option value="default" ${theme==='default'?'selected':''}>Purple (Default)</option>
        <option value="light" ${theme==='light'?'selected':''}>Light</option>
        <option value="dark" ${theme==='dark'?'selected':''}>Dark</option>
-    </select>`;
+    </select>
+    <hr style="margin:1rem 0;border-color:rgba(255,255,255,0.2)">
+    <p><label><input type="checkbox" id="auto-launch-toggle" ${prefs.autoLaunch?'checked':''}> Launch app at system startup</label></p>
+    <p><label><input type="checkbox" id="auto-n8n-toggle" ${prefs.autoStartN8n?'checked':''}> Automatically start embedded n8n</label></p>
+    <p style="margin-top:0.5rem;">Default Currency:</p>
+    <select id="currency-select" class="btn">
+       <option value="USD" ${prefs.defaultCurrency==='USD'?'selected':''}>USD</option>
+       <option value="EUR" ${prefs.defaultCurrency==='EUR'?'selected':''}>EUR</option>
+       <option value="GBP" ${prefs.defaultCurrency==='GBP'?'selected':''}>GBP</option>
+    </select>
+    <p><label><input type="checkbox" id="notifications-toggle" ${prefs.showNotifications?'checked':''}> Enable desktop notifications</label></p>`;
 
     document.getElementById('change-inbox-btn').addEventListener('click',async()=>{
         const folder=await window.electronAPI.chooseFolder();
@@ -1780,6 +1807,36 @@ async function loadSettings(){
                 renderAllCharts(filteredReceipts);
             }
         }
+    });
+
+    // Auto-launch toggle
+    document.getElementById('auto-launch-toggle').addEventListener('change', async (e) => {
+        const checked = e.target.checked;
+        await window.electronAPI.setPreference('autoLaunch', checked);
+        showNotification('Auto-launch preference saved!', 'success');
+    });
+
+    // Auto n8n toggle
+    document.getElementById('auto-n8n-toggle').addEventListener('change', async (e) => {
+        const checked = e.target.checked;
+        await window.electronAPI.setPreference('autoStartN8n', checked);
+        showNotification('Embedded n8n preference saved!', 'success');
+    });
+
+    // Currency selector
+    document.getElementById('currency-select').addEventListener('change', async (e)=>{
+        const val=e.target.value;
+        await window.electronAPI.setPreference('defaultCurrency', val);
+        userPrefs.defaultCurrency = val;
+        showNotification('Default currency updated!','success');
+    });
+
+    // Notifications toggle
+    document.getElementById('notifications-toggle').addEventListener('change', async (e)=>{
+        const checked=e.target.checked;
+        await window.electronAPI.setPreference('showNotifications', checked);
+        userPrefs.showNotifications = checked;
+        showNotification('Notification preference saved!','success');
     });
 }
 

@@ -22,6 +22,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Folder chooser
   chooseFolder: () => ipcRenderer.invoke('choose-folder'),
   
+  // Preferences
+  getPreferences: () => ipcRenderer.invoke('get-preferences'),
+  setPreference: (key: string, value: any) => ipcRenderer.invoke('set-preference', key, value),
+  
+  // Environment checks
+  getMissingEnvs: () => ipcRenderer.invoke('missing-envs'),
+  
   // Future: Receipt processing APIs will be added here
   // processReceipt: (filePath: string) => ipcRenderer.invoke('process-receipt', filePath),
   // getReceipts: () => ipcRenderer.invoke('get-receipts'),
@@ -48,6 +55,9 @@ declare global {
       openaiStatus: () => Promise<any>;
       n8nStatus: () => Promise<any>;
       chooseFolder: () => Promise<void>;
+      getPreferences: () => Promise<any>;
+      setPreference: (key: string, value: any) => Promise<void>;
+      getMissingEnvs: () => Promise<any>;
       // Future APIs will be typed here
     };
   }

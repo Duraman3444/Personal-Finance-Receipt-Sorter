@@ -38,6 +38,34 @@ server.post('/store-receipt', async (req, res) => {
     console.log('📥 Received receipt data from n8n workflow');
     console.log('   Data keys:', Object.keys(req.body));
     
+    // Check if this is an error response from the Set node
+    if (req.body.error) {
+      console.log('❌ Received error from n8n workflow:', req.body.error);
+      console.log('   Raw response:', JSON.stringify(req.body.raw_response, null, 2));
+      res.status(400).json({ 
+        success: false, 
+        error: 'Invalid receipt data from n8n workflow',
+        details: req.body.error
+      });
+      return;
+    }
+    
+    // Validate required fields
+    const requiredFields = ['vendor', 'date', 'total', 'category'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      console.log('❌ Missing required fields:', missingFields);
+      console.log('   Received data:', JSON.stringify(req.body, null, 2));
+      res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields',
+        missing_fields: missingFields,
+        received_fields: Object.keys(req.body)
+      });
+      return;
+    }
+    
     // Add processing metadata
     const receiptData = {
       ...req.body,

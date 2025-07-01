@@ -1,14 +1,21 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Tray, Menu } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { spawn, ChildProcess } from 'child_process';
+import { loadConfig, saveConfig, AppConfig } from './config';
 
 // Load environment variables
 dotenv.config();
 
 class ReceiptSorterApp {
   private mainWindow: BrowserWindow | null = null;
+  private tray: Tray | null = null;
+  private isQuitting = false;
+  private n8nProcess: ChildProcess | null = null;
+  private config: AppConfig;
 
   constructor() {
+    this.config = loadConfig();
     this.initializeApp();
   }
 
@@ -16,6 +23,12 @@ class ReceiptSorterApp {
     // Handle app ready
     app.whenReady().then(() => {
       this.createMainWindow();
+      if (this.config.autoLaunch) {
+        this.configureAutoLaunch();
+      }
+      if (this.config.autoStartN8n) {
+        this.ensureN8nRunning();
+      }
 
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -32,6 +45,9 @@ class ReceiptSorterApp {
     });
 
     this.setupIpcHandlers();
+
+    // Ensure cleanup on quit
+    app.on('will-quit', () => this.cleanup());
   }
 
   private createMainWindow(): void {
@@ -53,6 +69,11 @@ class ReceiptSorterApp {
     this.mainWindow.loadFile(indexHtml);
     console.log('Loaded HTML:', indexHtml);
 
+    // Create the system tray after the first window launch
+    if (!this.tray) {
+      this.createTray();
+    }
+
     // Show window when ready
     this.mainWindow.once('ready-to-show', () => {
       this.mainWindow?.show();
@@ -63,9 +84,115 @@ class ReceiptSorterApp {
       }
     });
 
+    // Minimize to tray instead of closing
+    this.mainWindow.on('close', (event) => {
+      if (process.platform === 'darwin') return; // macOS uses app menu quit
+      if (!this.isQuitting) {
+        event.preventDefault();
+        this.mainWindow?.hide();
+      }
+    });
+
     // Handle window closed
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
+    });
+  }
+
+  /**
+   * Create system tray with basic controls (Show / Hide, Quit)
+   */
+  private createTray() {
+    try {
+      const iconPath = path.join(__dirname, '../assets/icon.png');
+      this.tray = new Tray(iconPath);
+
+      const contextMenu = Menu.buildFromTemplate([
+        {
+          label: 'Show / Hide',
+          click: () => {
+            if (!this.mainWindow) return;
+            if (this.mainWindow.isVisible()) {
+              this.mainWindow.hide();
+            } else {
+              this.mainWindow.show();
+              this.mainWindow.focus();
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Quit',
+          click: () => {
+            this.isQuitting = true;
+            app.quit();
+          }
+        }
+      ]);
+
+      this.tray.setToolTip('Personal Finance Receipt Sorter');
+      this.tray.setContextMenu(contextMenu);
+
+      this.tray.on('double-click', () => {
+        if (this.mainWindow) {
+          this.mainWindow.show();
+        }
+      });
+    } catch (error) {
+      console.error('Failed to create system tray:', error);
+    }
+  }
+
+  /**
+   * Configure auto-launch at OS login (Windows / macOS). On Linux this is a no-op.
+   */
+  private configureAutoLaunch() {
+    try {
+      // Enabled by default; you can expose a setting later.
+      const shouldAutoLaunch = true;
+      if (process.platform === 'win32' || process.platform === 'darwin') {
+        app.setLoginItemSettings({
+          openAtLogin: shouldAutoLaunch,
+          path: process.execPath
+        });
+      }
+    } catch (error) {
+      console.error('Failed to configure auto-launch:', error);
+    }
+  }
+
+  /**
+   * Spawn n8n locally (port 5678) if it is not yet running.
+   * Uses `npx n8n start` so a global install is not strictly required.
+   */
+  private async ensureN8nRunning() {
+    try {
+      const isRunning = await this.checkPortInUse(5678);
+      if (isRunning) return;
+
+      console.log('▶️  Starting local n8n instance on port 5678...');
+      const child = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['n8n', 'start', '--port', '5678'], {
+        stdio: 'ignore',
+        detached: true
+      });
+
+      this.n8nProcess = child;
+      child.unref(); // allow it to run independently
+    } catch (error) {
+      console.error('Failed to start n8n automatically:', error);
+    }
+  }
+
+  /**
+   * Check if a TCP port is already bound.
+   */
+  private checkPortInUse(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const net = require('net');
+      const tester = net.createServer()
+        .once('error', () => resolve(true))
+        .once('listening', () => tester.once('close', () => resolve(false)).close())
+        .listen(port);
     });
   }
 
@@ -253,6 +380,57 @@ class ReceiptSorterApp {
       if (result.canceled || result.filePaths.length === 0) return null;
       return result.filePaths[0];
     });
+
+    // Preferences handlers
+    ipcMain.handle('get-preferences', () => {
+      return this.config;
+    });
+    ipcMain.handle('set-preference', async (_, key: keyof AppConfig, value: any) => {
+      (this.config as any)[key] = value;
+      saveConfig(this.config);
+
+      if (key === 'autoLaunch') {
+        this.configureAutoLaunch();
+      }
+      if (key === 'autoStartN8n') {
+        if (value) {
+          this.ensureN8nRunning();
+        } else {
+          if (this.n8nProcess && !this.n8nProcess.killed && this.n8nProcess.pid) {
+            try {
+              process.kill(-this.n8nProcess.pid);
+              this.n8nProcess = null;
+            } catch {}
+          }
+        }
+      }
+
+      // For preferences that don't need side-effects, nothing else to do
+      return this.config;
+    });
+
+    // Missing env variables handler
+    ipcMain.handle('missing-envs', () => {
+      const required = ['OPENAI_KEY', 'FIREBASE_API_KEY', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_PROJECT_ID', 'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_APP_ID'];
+      const missing = required.filter(k => !process.env[k]);
+      return missing;
+    });
+  }
+
+  /**
+   * Clean up child processes on quit
+   */
+  private cleanup() {
+    try {
+      if (this.n8nProcess && !this.n8nProcess.killed && this.n8nProcess.pid) {
+        console.log('🛑 Stopping n8n process...');
+        try {
+          process.kill(-this.n8nProcess.pid);
+        } catch {}
+      }
+    } catch (err) {
+      // ignore if already exited
+    }
   }
 }
 

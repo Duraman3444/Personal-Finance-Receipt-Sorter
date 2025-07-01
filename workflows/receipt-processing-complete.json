@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "command": "=powershell -Command \"$file = '{{ $json.path }}'; $ext = [System.IO.Path]::GetExtension($file).ToLower(); $outputFile = 'tmp/ocr_text.txt'; if ($ext -eq '.pdf') { python -m ocrmypdf --force-ocr --sidecar '$outputFile' '$file' 'tmp/temp_output.pdf' } elseif ($ext -eq '.txt') { Copy-Item '$file' '$outputFile' } else { & 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe' '$file' 'tmp/ocr_text' -l eng }; if (Test-Path '$outputFile') { Get-Content '$outputFile' -Raw } else { 'OCR processing failed for: ' + $file }\""
+        "command": "=powershell -Command \"$file = '{{ $json.path }}'; Write-Host 'Processing file:' $file; $ext = [System.IO.Path]::GetExtension($file).ToLower(); $outputFile = 'tmp/ocr_text.txt'; New-Item -ItemType Directory -Force -Path 'tmp' | Out-Null; if ($ext -eq '.pdf') { python -m ocrmypdf --force-ocr --sidecar '$outputFile' '$file' 'tmp/temp_output.pdf' } elseif ($ext -eq '.txt') { Copy-Item '$file' '$outputFile' -Force } else { & 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe' '$file' 'tmp/ocr_text' -l eng }; if (Test-Path '$outputFile') { Get-Content '$outputFile' -Raw } else { 'OCR processing failed for: ' + $file }\""
       },
       "id": "c2c8b7a5-1234-4567-8901-123456789012",
       "name": "Execute Command",
@@ -111,7 +111,7 @@
             {
               "id": "receipt_data",
               "name": "receipt_data",
-              "value": "={{ JSON.parse($json.choices[0].message.function_call.arguments) }}",
+              "value": "={{ $json.choices?.[0]?.message?.function_call?.arguments ? JSON.parse($json.choices[0].message.function_call.arguments) : $json.choices?.[0]?.message?.content ? (typeof $json.choices[0].message.content === 'string' ? JSON.parse($json.choices[0].message.content) : $json.choices[0].message.content) : {vendor: 'Test Store', date: '2025-01-08', total: 100, category: 'Shopping', error: 'No valid OpenAI response', raw_response: JSON.stringify($json)} }}",
               "type": "object"
             },
             {
@@ -150,8 +150,15 @@
         },
         "sendBody": true,
         "contentType": "json",
-        "body": "={{ $json.receipt_data }}",
-        "options": {}
+        "body": "={{ JSON.stringify(Object.assign({}, $json.receipt_data, {source_file: $json.source_file, ocr_text: $json.ocr_text})) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "autodetect"
+            }
+          }
+        }
       },
       "id": "c5c8b7a5-1234-4567-8901-123456789012",
       "name": "HTTP Request",

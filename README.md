@@ -1,5 +1,11 @@
 # Personal Finance Receipt Sorter
 
+**Ultra-Quick Start**
+`npm install && npm run dev` – the app now:
+• Auto-spawns an embedded n8n instance (port 5678) if one isn’t already running
+• Minimises to the system tray and can start at OS login (toggle under Settings)
+• Warns you if essential environment variables are missing at launch
+
 A desktop application that automatically processes receipt images and PDFs using AI, with integrated n8n workflow automation.
 
 ## 🚀 Features
