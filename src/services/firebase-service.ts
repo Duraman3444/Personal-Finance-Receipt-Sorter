@@ -113,43 +113,91 @@ export class FirebaseService {
   }
 
   // Category operations
-  async getCategories(): Promise<string[]> {
+  async getCategories(): Promise<Array<{id: string, name: string, color: string, icon: string, createdAt: any}>> {
     try {
       const querySnapshot = await getDocs(collection(db, this.categoriesCollection));
-      const categories: string[] = [];
+      const categories: Array<{id: string, name: string, color: string, icon: string, createdAt: any}> = [];
       
       querySnapshot.forEach((doc) => {
-        categories.push(doc.data().name);
+        const data = doc.data();
+        categories.push({
+          id: doc.id,
+          name: data.name,
+          color: data.color || '#667eea',
+          icon: data.icon || '📄',
+          createdAt: data.createdAt || new Date()
+        });
       });
       
       // Add default categories if none exist
       if (categories.length === 0) {
         const defaultCategories = [
-          'Groceries', 'Restaurants', 'Gas', 'Shopping', 
-          'Utilities', 'Healthcare', 'Entertainment', 'Other'
+          { name: 'Groceries', color: '#51cf66', icon: '🛒' },
+          { name: 'Restaurants', color: '#fd7e14', icon: '🍽️' },
+          { name: 'Gas', color: '#fa5252', icon: '⛽' },
+          { name: 'Shopping', color: '#e64980', icon: '🛍️' },
+          { name: 'Utilities', color: '#339af0', icon: '⚡' },
+          { name: 'Healthcare', color: '#37b24d', icon: '🏥' },
+          { name: 'Entertainment', color: '#ae3ec9', icon: '🎬' },
+          { name: 'Other', color: '#868e96', icon: '📄' }
         ];
         
         for (const category of defaultCategories) {
-          await addDoc(collection(db, this.categoriesCollection), { name: category });
+          await addDoc(collection(db, this.categoriesCollection), { 
+            ...category,
+            createdAt: new Date().toISOString()
+          });
         }
         
-        return defaultCategories;
+        return defaultCategories.map((cat, index) => ({
+          id: `default_${index}`,
+          ...cat,
+          createdAt: new Date()
+        }));
       }
       
       console.log(`✅ Retrieved ${categories.length} categories`);
-      return categories;
+      return categories.sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error('❌ Error getting categories:', error);
       throw error;
     }
   }
 
-  async addCategory(name: string): Promise<void> {
+  async addCategory(category: {name: string, color: string, icon: string}): Promise<string> {
     try {
-      await addDoc(collection(db, this.categoriesCollection), { name });
-      console.log('✅ Category added:', name);
+      const docRef = await addDoc(collection(db, this.categoriesCollection), { 
+        ...category,
+        createdAt: new Date().toISOString()
+      });
+      console.log('✅ Category added:', category.name);
+      return docRef.id;
     } catch (error) {
       console.error('❌ Error adding category:', error);
+      throw error;
+    }
+  }
+
+  async updateCategory(id: string, updates: {name?: string, color?: string, icon?: string}): Promise<void> {
+    try {
+      const categoryRef = doc(db, this.categoriesCollection, id);
+      await updateDoc(categoryRef, {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+      console.log('✅ Category updated:', id);
+    } catch (error) {
+      console.error('❌ Error updating category:', error);
+      throw error;
+    }
+  }
+
+  async deleteCategory(id: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, this.categoriesCollection, id));
+      console.log('✅ Category deleted:', id);
+    } catch (error) {
+      console.error('❌ Error deleting category:', error);
       throw error;
     }
   }

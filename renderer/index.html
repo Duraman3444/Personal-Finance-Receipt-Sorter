@@ -308,6 +308,479 @@
         .insight-icon.warning { background: #ffd43b; }
         .insight-icon.success { background: #51cf66; }
 
+        /* Categories Page Styles */
+        .categories-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .categories-header h2 {
+            margin: 0;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .btn-add-category {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-add-category:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .category-card {
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+        }
+
+        .category-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .category-icon-name {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .category-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        .category-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            margin: 0;
+        }
+
+        .category-actions {
+            display: flex;
+            gap: 0.5rem;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+
+        .category-card:hover .category-actions {
+            opacity: 1;
+        }
+
+        .btn-category-action {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 6px;
+            padding: 6px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.8);
+            transition: background 0.2s ease;
+        }
+
+        .btn-category-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .category-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .category-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color, #667eea);
+        }
+
+        .category-count {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .category-progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin: 1rem 0 0.5rem 0;
+            overflow: hidden;
+        }
+
+        .category-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color, #667eea), var(--secondary-color, #764ba2));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: var(--card-bg, rgba(30, 30, 30, 0.95));
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            margin: 0;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.6);
+            transition: color 0.2s ease;
+        }
+
+        .close:hover {
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color, #667eea);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .color-icon-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .color-option, .icon-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .color-option:hover, .icon-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.selected, .icon-option.selected {
+            border-color: white;
+            transform: scale(1.1);
+        }
+
+        .icon-option {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+        }
+
+        /* Category Details Modal Styles */
+        .category-details-content {
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .category-details-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .category-details-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .detail-stat {
+            text-align: center;
+        }
+
+        .detail-stat-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color, #667eea);
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-stat-label {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .receipts-actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .receipts-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .receipt-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            transition: background 0.2s ease;
+        }
+
+        .receipt-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .receipt-info {
+            flex: 1;
+        }
+
+        .receipt-vendor {
+            font-weight: 600;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            margin-bottom: 0.25rem;
+        }
+
+        .receipt-details {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .receipt-amount {
+            font-weight: 600;
+            color: var(--accent-color, #667eea);
+            font-size: 1.1rem;
+        }
+
+        .receipt-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-receipt-action {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.8rem;
+            transition: background 0.2s ease;
+        }
+
+        .btn-receipt-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-receipt-action.danger:hover {
+            background: #fa5252;
+        }
+
+        .empty-receipts {
+            text-align: center;
+            padding: 2rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .category-select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-size: 0.8rem;
+            font-weight: normal;
+            min-width: 120px;
+            cursor: pointer;
+        }
+
+        .category-select:focus {
+            outline: none;
+            border-color: var(--accent-color, #667eea);
+        }
+
+        .category-select option {
+            background: #2c2c2c !important;
+            color: #ffffff !important;
+            padding: 4px 8px;
+            font-weight: normal;
+        }
+
+        .category-select option:hover {
+            background: #3c3c3c !important;
+            color: #ffffff !important;
+        }
+
+        .category-select option:checked {
+            background: var(--accent-color, #667eea) !important;
+            color: #ffffff !important;
+        }
+
+        /* For light theme */
+        .theme-light .category-select {
+            background: rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            color: rgba(0, 0, 0, 0.9);
+        }
+
+        .theme-light .category-select option {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        .theme-light .category-select option:hover {
+            background: #f0f0f0;
+        }
+
         @media (max-width: 768px) {
             .charts-grid {
                 grid-template-columns: 1fr;
@@ -316,6 +789,35 @@
             .analytics-header {
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            .categories-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .category-details-stats {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+
+            .receipts-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-buttons {
+                justify-content: center;
+            }
+
+            .receipt-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+            }
+
+            .receipt-actions {
+                justify-content: center;
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -380,9 +882,94 @@
             </div>
 
             <div id="categories-page" style="display: none;">
-                <div class="welcome-card">
-                    <h2>Spending Categories</h2>
-                    <p>Manage your spending categories here...</p>
+                <div class="categories-header">
+                    <h2>🏷️ Spending Categories</h2>
+                    <button class="btn-add-category" id="add-category-btn">
+                        <span>➕</span>
+                        Add Category
+                    </button>
+                </div>
+                
+                <div class="categories-grid" id="categories-grid">
+                    <!-- Categories will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Category Modal -->
+            <div id="category-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="modal-title">Add New Category</h3>
+                        <button class="close" id="modal-close">&times;</button>
+                    </div>
+                    
+                    <form id="category-form">
+                        <div class="form-group">
+                            <label class="form-label" for="category-name">Category Name</label>
+                            <input type="text" id="category-name" class="form-input" placeholder="Enter category name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Choose Color</label>
+                            <div class="color-icon-grid" id="color-options">
+                                <!-- Color options will be generated -->
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Choose Icon</label>
+                            <div class="color-icon-grid" id="icon-options">
+                                <!-- Icon options will be generated -->
+                            </div>
+                        </div>
+                        
+                        <div class="modal-buttons">
+                            <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
+                            <button type="submit" class="btn-primary" id="save-btn">Save Category</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Category Details Modal -->
+            <div id="category-details-modal" class="modal">
+                <div class="modal-content category-details-content">
+                    <div class="modal-header">
+                        <div class="category-details-title">
+                            <div class="category-icon" id="details-category-icon"></div>
+                            <h3 class="modal-title" id="details-modal-title">Category Details</h3>
+                        </div>
+                        <button class="close" id="details-modal-close">&times;</button>
+                    </div>
+                    
+                    <div class="category-details-stats">
+                        <div class="detail-stat">
+                            <span class="detail-stat-value" id="category-total-amount">$0</span>
+                            <span class="detail-stat-label">Total Spent</span>
+                        </div>
+                        <div class="detail-stat">
+                            <span class="detail-stat-value" id="category-receipt-count">0</span>
+                            <span class="detail-stat-label">Receipts</span>
+                        </div>
+                        <div class="detail-stat">
+                            <span class="detail-stat-value" id="category-avg-amount">$0</span>
+                            <span class="detail-stat-label">Average</span>
+                        </div>
+                    </div>
+
+                    <div class="receipts-actions">
+                        <div class="search-box">
+                            <input type="text" id="receipt-search" class="form-input" placeholder="Search receipts...">
+                        </div>
+                        <div class="filter-buttons">
+                            <button class="btn-secondary" id="show-all-receipts">Show All Receipts</button>
+                            <button class="btn-secondary" id="add-receipt-to-category">Add Receipt</button>
+                        </div>
+                    </div>
+                    
+                    <div class="receipts-list" id="category-receipts-list">
+                        <!-- Receipts will be loaded here -->
+                    </div>
                 </div>
             </div>
 

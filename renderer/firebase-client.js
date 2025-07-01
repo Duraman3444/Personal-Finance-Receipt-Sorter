@@ -88,6 +88,147 @@ class FirebaseClientService {
     }
   }
 
+  // Category management methods
+  async getCategories() {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { collection, getDocs, addDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const categoriesRef = collection(this.db, 'categories');
+      const snap = await getDocs(categoriesRef);
+      const categories = [];
+      
+      snap.forEach((doc) => {
+        const data = doc.data();
+        categories.push({
+          id: doc.id,
+          name: data.name,
+          color: data.color || '#667eea',
+          icon: data.icon || '📄',
+          createdAt: data.createdAt || new Date()
+        });
+      });
+      
+      // Add default categories if none exist
+      if (categories.length === 0) {
+        const defaultCategories = [
+          { name: 'Groceries', color: '#51cf66', icon: '🛒' },
+          { name: 'Restaurants', color: '#fd7e14', icon: '🍽️' },
+          { name: 'Gas', color: '#fa5252', icon: '⛽' },
+          { name: 'Shopping', color: '#e64980', icon: '🛍️' },
+          { name: 'Utilities', color: '#339af0', icon: '⚡' },
+          { name: 'Healthcare', color: '#37b24d', icon: '🏥' },
+          { name: 'Entertainment', color: '#ae3ec9', icon: '🎬' },
+          { name: 'Other', color: '#868e96', icon: '📄' }
+        ];
+        
+        for (const category of defaultCategories) {
+          await addDoc(categoriesRef, { 
+            ...category,
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        return defaultCategories.map((cat, index) => ({
+          id: `default_${index}`,
+          ...cat,
+          createdAt: new Date()
+        }));
+      }
+      
+      return categories.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  }
+
+  async addCategory(categoryData) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { collection, addDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const categoriesRef = collection(this.db, 'categories');
+      const docRef = await addDoc(categoriesRef, { 
+        ...categoryData,
+        createdAt: new Date().toISOString()
+      });
+      console.log('✅ Category added:', categoryData.name);
+      return docRef.id;
+    } catch (error) {
+      console.error('❌ Error adding category:', error);
+      throw error;
+    }
+  }
+
+  async updateCategory(categoryId, updates) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const categoryRef = doc(this.db, 'categories', categoryId);
+      await updateDoc(categoryRef, {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+      console.log('✅ Category updated:', categoryId);
+    } catch (error) {
+      console.error('❌ Error updating category:', error);
+      throw error;
+    }
+  }
+
+  async deleteCategory(categoryId) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const categoryRef = doc(this.db, 'categories', categoryId);
+      await deleteDoc(categoryRef);
+      console.log('✅ Category deleted:', categoryId);
+    } catch (error) {
+      console.error('❌ Error deleting category:', error);
+      throw error;
+    }
+  }
+
+  async updateReceipt(receiptId, updates) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const receiptRef = doc(this.db, 'receipts', receiptId);
+      await updateDoc(receiptRef, {
+        ...updates,
+        updated_at: new Date().toISOString()
+      });
+      console.log('✅ Receipt updated:', receiptId);
+    } catch (error) {
+      console.error('❌ Error updating receipt:', error);
+      throw error;
+    }
+  }
+
+  async deleteReceipt(receiptId) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const receiptRef = doc(this.db, 'receipts', receiptId);
+      await deleteDoc(receiptRef);
+      console.log('✅ Receipt deleted:', receiptId);
+    } catch (error) {
+      console.error('❌ Error deleting receipt:', error);
+      throw error;
+    }
+  }
+
   getStatus() {
     return {
       initialized: this.isInitialized,
