@@ -1,0 +1,266 @@
+{
+  "name": "Receipt Processing (Windows)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "E:\\Personal Finance Receipt Sorter\\Personal-Finance-Receipt-Sorter\\inbox",
+        "watchForFileChanges": true,
+        "watchForFolderChanges": false
+      },
+      "id": "w1c8b7a5-1234-4567-8901-123456789012",
+      "name": "Folder Trigger",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "=powershell -Command \"$file = '{{ $json.path }}'; $ext = [System.IO.Path]::GetExtension($file).ToLower(); $outputFile = 'tmp/ocr_text.txt'; if ($ext -eq '.pdf') { python -m ocrmypdf --force-ocr --sidecar '$outputFile' '$file' 'tmp/temp_output.pdf' } elseif ($ext -eq '.txt') { Copy-Item '$file' '$outputFile' } else { & 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe' '$file' 'tmp/ocr_text' -l eng }; if (Test-Path '$outputFile') { Get-Content '$outputFile' -Raw } else { 'OCR processing failed for: ' + $file }\""
+      },
+      "id": "w2c8b7a5-1234-4567-8901-123456789012",
+      "name": "OCR Processing",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a receipt parsing assistant. Extract key information from receipt text and return it in the specified JSON format."
+            },
+            {
+              "role": "user",
+              "content": "=Extract the following fields from this receipt OCR text:\n\n{{ $json.stdout }}"
+            }
+          ]
+        },
+        "functions": {
+          "values": [
+            {
+              "name": "parse_receipt",
+              "description": "Extract key data from a purchase receipt",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "vendor": {
+                    "type": "string",
+                    "description": "The store or vendor name"
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Purchase date in YYYY-MM-DD format"
+                  },
+                  "total": {
+                    "type": "number",
+                    "description": "Total amount paid"
+                  },
+                  "tax": {
+                    "type": "number",
+                    "description": "Tax amount"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "default": "USD",
+                    "description": "Currency code"
+                  },
+                  "payment_method": {
+                    "type": "string",
+                    "description": "Payment method used"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": ["Groceries", "Dining", "Travel", "Utilities", "Shopping", "Gas", "Healthcare", "Entertainment", "Other"],
+                    "description": "Spending category"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {"type": "string"},
+                        "price": {"type": "number"},
+                        "quantity": {"type": "number", "default": 1}
+                      }
+                    }
+                  }
+                },
+                "required": ["vendor", "date", "total", "category"]
+              }
+            }
+          ]
+        },
+        "functionCall": "parse_receipt"
+      },
+      "id": "w3c8b7a5-1234-4567-8901-123456789012",
+      "name": "OpenAI Parse",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "receipt_data",
+              "name": "receipt_data",
+              "value": "={{ JSON.parse($json.choices[0].message.function_call.arguments) }}",
+              "type": "object"
+            },
+            {
+              "id": "source_file",
+              "name": "source_file",
+              "value": "={{ $('Folder Trigger').item.json.path }}",
+              "type": "string"
+            },
+            {
+              "id": "ocr_text",
+              "name": "ocr_text",
+              "value": "={{ $('OCR Processing').item.json.stdout }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "w4c8b7a5-1234-4567-8901-123456789012",
+      "name": "Format Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3001/store-receipt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ $json.receipt_data }}",
+        "options": {}
+      },
+      "id": "w5c8b7a5-1234-4567-8901-123456789012",
+      "name": "Store Receipt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "value": "=Receipt processed successfully: {{ $json.data.vendor }} - ${{ $json.data.total }}",
+              "type": "string"
+            },
+            {
+              "id": "firestore_id",
+              "name": "firestore_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "source_file",
+              "name": "processed_file",
+              "value": "={{ $('Format Data').item.json.source_file }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "w6c8b7a5-1234-4567-8901-123456789012",
+      "name": "Success Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1240, 300]
+    }
+  ],
+  "connections": {
+    "Folder Trigger": {
+      "main": [
+        [
+          {
+            "node": "OCR Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Processing": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Parse": {
+      "main": [
+        [
+          {
+            "node": "Format Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data": {
+      "main": [
+        [
+          {
+            "node": "Store Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Receipt": {
+      "main": [
+        [
+          {
+            "node": "Success Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-07-01T04:35:00.000Z",
+      "updatedAt": "2025-07-01T04:35:00.000Z",
+      "id": "windows-receipt-processing",
+      "name": "Windows Receipt Processing"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-07-01T04:35:00.000Z",
+  "versionId": "1"
+} 
