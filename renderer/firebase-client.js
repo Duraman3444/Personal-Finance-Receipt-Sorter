@@ -67,6 +67,27 @@ class FirebaseClientService {
     }
   }
 
+  // Fetch recent receipts from Firestore
+  async getReceipts(limitCount = 20) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    try {
+      const { collection, getDocs, orderBy, query, limit } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const receiptsRef = collection(this.db, 'receipts');
+      const q = query(receiptsRef, orderBy('processed_at', 'desc'), limit(limitCount));
+      const snap = await getDocs(q);
+      const results = [];
+      snap.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() });
+      });
+      return results;
+    } catch (error) {
+      console.error('Error fetching receipts:', error);
+      return [];
+    }
+  }
+
   getStatus() {
     return {
       initialized: this.isInitialized,

@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   firebaseTest: () => ipcRenderer.invoke('firebase-test'),
   getFirebaseConfig: () => ipcRenderer.invoke('get-firebase-config'),
   
+  // Status checks
+  openaiStatus: () => ipcRenderer.invoke('openai-status'),
+  n8nStatus: () => ipcRenderer.invoke('n8n-status'),
+  
+  // Folder chooser
+  chooseFolder: () => ipcRenderer.invoke('choose-folder'),
+  
   // Future: Receipt processing APIs will be added here
   // processReceipt: (filePath: string) => ipcRenderer.invoke('process-receipt', filePath),
   // getReceipts: () => ipcRenderer.invoke('get-receipts'),
@@ -38,6 +45,9 @@ declare global {
         messagingSenderId: string;
         appId: string;
       }>;
+      openaiStatus: () => Promise<any>;
+      n8nStatus: () => Promise<any>;
+      chooseFolder: () => Promise<void>;
       // Future APIs will be typed here
     };
   }

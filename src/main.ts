@@ -49,7 +49,9 @@ class ReceiptSorterApp {
     });
 
     // Load the HTML file
-    this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    const indexHtml = path.join(app.getAppPath(), 'renderer', 'index.html');
+    this.mainWindow.loadFile(indexHtml);
+    console.log('Loaded HTML:', indexHtml);
 
     // Show window when ready
     this.mainWindow.once('ready-to-show', () => {
@@ -75,7 +77,35 @@ class ReceiptSorterApp {
 
     // Handle opening folders
     ipcMain.handle('open-folder', async (_, folderPath: string) => {
-      await shell.openPath(folderPath);
+      try {
+        let resolvedPath = folderPath;
+        
+        // Handle special case for inbox folder
+        if (folderPath === 'inbox') {
+          // Use __dirname to get the app directory, then navigate to project root
+          const appPath = app.getAppPath();
+          resolvedPath = path.join(appPath, 'inbox');
+          
+          // Check if inbox exists in app path, if not try process.cwd()
+          const fs = await import('fs');
+          if (!fs.existsSync(resolvedPath)) {
+            resolvedPath = path.join(process.cwd(), 'inbox');
+          }
+          
+          // Final fallback - use absolute path construction
+          if (!fs.existsSync(resolvedPath)) {
+            resolvedPath = path.resolve('./inbox');
+          }
+        } else if (!path.isAbsolute(folderPath)) {
+          resolvedPath = path.resolve(folderPath);
+        }
+        
+        console.log('Opening folder:', resolvedPath);
+        await shell.openPath(resolvedPath);
+      } catch (error) {
+        console.error('Failed to open folder:', error);
+        throw error;
+      }
     });
 
     // Handle getting app version
@@ -128,6 +158,98 @@ class ReceiptSorterApp {
         messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
         appId: process.env.FIREBASE_APP_ID
       };
+    });
+
+    // OpenAI status check
+    ipcMain.handle('openai-status', async () => {
+      try {
+        const hasApiKey = !!process.env.OPENAI_KEY;
+        if (!hasApiKey) {
+          return { 
+            success: false, 
+            connected: false, 
+            error: 'API key not configured' 
+          };
+        }
+
+        // Test OpenAI connection by importing and checking the client
+        const { OpenAI } = await import('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
+        
+        return { 
+          success: true, 
+          connected: true,
+          hasApiKey: true
+        };
+      } catch (error) {
+        console.error('OpenAI status check failed:', error);
+        return { 
+          success: false, 
+          connected: false, 
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    });
+
+    // N8N status check
+    ipcMain.handle('n8n-status', async () => {
+      try {
+        // Check if N8N is running on localhost:5678
+        const http = await import('http');
+        return new Promise((resolve) => {
+          const req = http.request({
+            hostname: 'localhost',
+            port: 5678,
+            path: '/rest/active',
+            method: 'GET',
+            timeout: 2000
+          }, (res) => {
+            resolve({ 
+              success: true, 
+              connected: true, 
+              running: res.statusCode === 200 
+            });
+          });
+
+          req.on('error', () => {
+            resolve({ 
+              success: false, 
+              connected: false, 
+              running: false,
+              error: 'N8N not running on localhost:5678'
+            });
+          });
+
+          req.on('timeout', () => {
+            req.destroy();
+            resolve({ 
+              success: false, 
+              connected: false, 
+              running: false,
+              error: 'Connection timeout'
+            });
+          });
+
+          req.end();
+        });
+      } catch (error) {
+        return { 
+          success: false, 
+          connected: false, 
+          running: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    });
+
+    // Dialog to choose a folder
+    ipcMain.handle('choose-folder', async () => {
+      const { dialog } = await import('electron');
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+      });
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return result.filePaths[0];
     });
   }
 }

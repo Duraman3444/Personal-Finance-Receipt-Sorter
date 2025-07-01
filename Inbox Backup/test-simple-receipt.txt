@@ -1,0 +1,15 @@
+WALMART SUPERCENTER
+Store #1234
+123 Main St, Anytown USA
+
+Bananas                  $2.99
+Milk 1 Gallon           $3.49
+Bread                   $1.99
+
+Subtotal                $8.47
+Tax                     $0.68
+TOTAL                   $9.15
+
+Visa ending 1234        $9.15
+Thank you for shopping!
+12/30/2024 2:45 PM 

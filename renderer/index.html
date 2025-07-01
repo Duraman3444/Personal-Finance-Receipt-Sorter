@@ -13,7 +13,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start,#4c6ef5), var(--bg-gradient-end,#7048e8));
+            color: var(--text-color,white);
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -40,7 +41,7 @@
 
         .sidebar {
             width: 250px;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--sidebar-bg,rgba(255, 255, 255, 0.1));
             backdrop-filter: blur(10px);
             border-right: 1px solid rgba(255, 255, 255, 0.2);
             padding: 2rem 1rem;
@@ -49,7 +50,7 @@
         .nav-item {
             display: block;
             padding: 0.75rem 1rem;
-            color: white;
+            color: var(--text-color,white);
             text-decoration: none;
             border-radius: 8px;
             margin-bottom: 0.5rem;
@@ -71,7 +72,7 @@
         }
 
         .welcome-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--card-bg,rgba(255, 255, 255, 0.1));
             backdrop-filter: blur(10px);
             border-radius: 12px;
             padding: 2rem;
@@ -80,13 +81,13 @@
         }
 
         .welcome-card h2 {
-            color: white;
+            color: var(--text-color,white);
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
 
         .welcome-card p {
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-color,rgba(255,255,255,0.8));
             line-height: 1.6;
             margin-bottom: 1rem;
         }
@@ -131,7 +132,7 @@
         }
 
         .status-text {
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--text-color,rgba(255,255,255,0.9));
             font-size: 0.9rem;
         }
 
@@ -141,6 +142,29 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             color: rgba(255, 255, 255, 0.7);
             font-size: 0.8rem;
+        }
+
+        .notification.notification-success { background:#51cf66; }
+
+        /* Theme support */
+        .theme-dark {
+            --bg-gradient-start:#1e1e2e;
+            --bg-gradient-end:#11111b;
+            --card-bg:rgba(255,255,255,0.05);
+            --text-color:#f8f8f2;
+            --sidebar-bg:rgba(255,255,255,0.05);
+        }
+
+        .theme-light {
+            --bg-gradient-start:#e0e4ff;
+            --bg-gradient-end:#bac8ff;
+            --card-bg:rgba(255,255,255,0.6);
+            --text-color:#1e1e1e;
+            --sidebar-bg:rgba(255,255,255,0.4);
+        }
+
+        .theme-light, .theme-light h2, .theme-light p, .theme-light a, .theme-light .status-text, .theme-light th, .theme-light td, .theme-light .btn  {
+            color: #1e1e1e !important;
         }
     </style>
 </head>
@@ -230,7 +254,8 @@
         <span id="app-version">Loading version...</span> | FlowGenius Desktop Application Project
     </div>
 
-            <script src="firebase-client.js"></script>
-        <script src="renderer.js"></script>
-    </body>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script type="module" src="firebase-client.js"></script>
+    <script type="module" src="renderer.js"></script>
+</body>
 </html> 

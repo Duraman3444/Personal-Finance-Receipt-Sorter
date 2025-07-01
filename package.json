@@ -2,7 +2,7 @@
   "name": "personal-finance-receipt-sorter",
   "version": "1.0.0",
   "description": "A desktop application that automatically processes receipt images and PDFs, extracts financial data using AI, and maintains a local ledger for personal finance tracking.",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "scripts": {
     "build": "tsc",
     "start": "npm run build && electron .",
