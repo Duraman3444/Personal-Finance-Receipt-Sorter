@@ -792,7 +792,33 @@ function exportAsCSV(data) {
             `"${category.budgetStatus}"`,
             category.averagePerReceipt,
             `"${category.subcategories.join('; ')}"`
-        ].join(','))
+        ].join(',')),
+        // Summary row
+        (() => {
+            const totals = data.reduce((acc, cat) => {
+                acc.totalSpent += cat.totalSpent;
+                acc.monthlySpent += cat.monthlySpent;
+                acc.monthlyRemaining += (typeof cat.monthlyRemaining === 'number' ? cat.monthlyRemaining : 0);
+                acc.receiptCount += cat.receiptCount;
+                acc.monthlyReceiptCount += cat.monthlyReceiptCount;
+                return acc;
+            }, { totalSpent: 0, monthlySpent: 0, monthlyRemaining: 0, receiptCount: 0, monthlyReceiptCount: 0 });
+            return [
+                '"TOTAL"',
+                '',
+                '',
+                '',
+                totals.monthlySpent.toFixed(2),
+                totals.monthlyRemaining.toFixed(2),
+                '',
+                totals.totalSpent.toFixed(2),
+                totals.receiptCount,
+                totals.monthlyReceiptCount,
+                '',
+                '',
+                ''
+            ].join(',');
+        })()
     ].join('\n');
     
     downloadFile(csvContent, 'categories-export.csv', 'text/csv');
