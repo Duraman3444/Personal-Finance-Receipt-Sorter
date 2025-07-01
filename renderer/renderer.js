@@ -226,9 +226,12 @@ async function loadCategories() {
                 }
             }
             
-            // Show different actions for receipt-only categories
+            // Show actions for all categories with pencil button
             const categoryActions = category.isFromReceipts ? 
                 `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                        ✏️
+                    </button>
                     <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
                         ➕
                     </button>
@@ -286,6 +289,13 @@ async function loadCategories() {
                         <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
                     </div>
                     ${budgetSection}
+                    ${category.subcategories && category.subcategories.length > 0 ? `
+                        <div class="subcategories-section">
+                            <div class="subcategories-label">Subcategories</div>
+                            <div class="subcategories-list">
+                                ${category.subcategories.map(sub => `<span class="subcategory-tag">${sub}</span>`).join('')}
+                            </div>
+                        </div>` : ''}
                 </div>
             `;
         });
@@ -300,6 +310,9 @@ async function loadCategories() {
         
         // Set up search and filter functionality
         setupCategorySearchAndFilter(allCategories, categoryStats, currentMonthStats, maxSpending);
+        
+        // Set up export functionality
+        setupExportDropdown();
         
     } catch(err) {
         console.error('Error loading categories:', err);
@@ -428,9 +441,12 @@ function setupCategorySearchAndFilter(allCategories, categoryStats, currentMonth
                 }
             }
             
-            // Show different actions for receipt-only categories
+            // Show actions for all categories with pencil button
             const categoryActions = category.isFromReceipts ? 
                 `<div class="category-actions">
+                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                        ✏️
+                    </button>
                     <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
                         ➕
                     </button>
@@ -488,6 +504,13 @@ function setupCategorySearchAndFilter(allCategories, categoryStats, currentMonth
                         <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
                     </div>
                     ${budgetSection}
+                    ${category.subcategories && category.subcategories.length > 0 ? `
+                        <div class="subcategories-section">
+                            <div class="subcategories-label">Subcategories</div>
+                            <div class="subcategories-list">
+                                ${category.subcategories.map(sub => `<span class="subcategory-tag">${sub}</span>`).join('')}
+                            </div>
+                        </div>` : ''}
                 </div>
             `;
         });
@@ -583,6 +606,324 @@ function setupBudgetOverview(allCategories, currentMonthStats) {
     } else {
         budgetAlertsEl.innerHTML = '<div style="color: #51cf66; font-size: 0.9rem;">🎉 All budgets are on track!</div>';
     }
+}
+
+// Export functionality
+function setupExportDropdown() {
+    const exportBtn = document.getElementById('export-btn');
+    const dropdown = exportBtn?.parentElement;
+    
+    if (!exportBtn || !dropdown) return;
+    
+    exportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+}
+
+async function exportCategories(format) {
+    try {
+        // Close the dropdown
+        document.querySelector('.dropdown').classList.remove('open');
+        
+        // Get categories and receipts data
+        const [categories, receipts] = await Promise.all([
+            window.firebaseClient.getCategories ? window.firebaseClient.getCategories() : [],
+            window.firebaseClient.getReceipts(1000)
+        ]);
+        
+        // Calculate statistics for each category
+        const categoryStats = {};
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        
+        receipts.forEach(r => {
+            const cat = r.category || 'Uncategorized';
+            if (!categoryStats[cat]) {
+                categoryStats[cat] = { 
+                    total: 0, 
+                    count: 0, 
+                    monthlyTotal: 0,
+                    monthlyCount: 0
+                };
+            }
+            
+            categoryStats[cat].total += (r.total || 0);
+            categoryStats[cat].count += 1;
+            
+            // Current month stats
+            const receiptDate = parseReceiptDate(r.date);
+            if (receiptDate && 
+                receiptDate.getMonth() === currentMonth && 
+                receiptDate.getFullYear() === currentYear) {
+                categoryStats[cat].monthlyTotal += (r.total || 0);
+                categoryStats[cat].monthlyCount += 1;
+            }
+        });
+        
+        // Combine categories with their stats
+        const exportData = categories.map(category => ({
+            name: category.name,
+            color: category.color,
+            icon: category.icon,
+            monthlyBudget: category.monthlyBudget || null,
+            subcategories: category.subcategories || [],
+            totalSpent: categoryStats[category.name]?.total || 0,
+            receiptCount: categoryStats[category.name]?.count || 0,
+            monthlySpent: categoryStats[category.name]?.monthlyTotal || 0,
+            monthlyReceiptCount: categoryStats[category.name]?.monthlyCount || 0,
+            budgetStatus: category.monthlyBudget ? 
+                ((categoryStats[category.name]?.monthlyTotal || 0) / category.monthlyBudget * 100).toFixed(1) + '%' : 
+                'No Budget',
+            averagePerReceipt: categoryStats[category.name]?.count ? 
+                (categoryStats[category.name].total / categoryStats[category.name].count).toFixed(2) : '0.00'
+        }));
+        
+        if (format === 'csv') {
+            exportAsCSV(exportData);
+        } else if (format === 'json') {
+            exportAsJSON(exportData);
+        }
+        
+        showNotification(`Categories exported as ${format.toUpperCase()}!`, 'success');
+        
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Failed to export categories', 'error');
+    }
+}
+
+function exportAsCSV(data) {
+    const headers = [
+        'Category Name',
+        'Monthly Budget',
+        'Total Spent',
+        'Monthly Spent',
+        'Receipt Count',
+        'Monthly Receipts',
+        'Budget Status',
+        'Average per Receipt',
+        'Subcategories'
+    ];
+    
+    const csvContent = [
+        headers.join(','),
+        ...data.map(category => [
+            `"${category.name}"`,
+            category.monthlyBudget || '',
+            category.totalSpent,
+            category.monthlySpent,
+            category.receiptCount,
+            category.monthlyReceiptCount,
+            `"${category.budgetStatus}"`,
+            category.averagePerReceipt,
+            `"${category.subcategories.join('; ')}"`
+        ].join(','))
+    ].join('\n');
+    
+    downloadFile(csvContent, 'categories-export.csv', 'text/csv');
+}
+
+function exportAsJSON(data) {
+    const jsonContent = JSON.stringify({
+        exportDate: new Date().toISOString(),
+        categories: data
+    }, null, 2);
+    
+    downloadFile(jsonContent, 'categories-export.json', 'application/json');
+}
+
+async function exportBudgetReport() {
+    try {
+        // Close the dropdown
+        document.querySelector('.dropdown').classList.remove('open');
+        
+        // Get categories and receipts data
+        const [categories, receipts] = await Promise.all([
+            window.firebaseClient.getCategories ? window.firebaseClient.getCategories() : [],
+            window.firebaseClient.getReceipts(1000)
+        ]);
+        
+        // Filter categories with budgets
+        const budgetCategories = categories.filter(cat => cat.monthlyBudget && cat.monthlyBudget > 0);
+        
+        if (budgetCategories.length === 0) {
+            showNotification('No categories with budgets found', 'warning');
+            return;
+        }
+        
+        // Calculate current month statistics
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        const monthName = new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+        
+        const categoryStats = {};
+        receipts.forEach(r => {
+            const cat = r.category || 'Uncategorized';
+            if (!categoryStats[cat]) {
+                categoryStats[cat] = { total: 0, count: 0 };
+            }
+            
+            const receiptDate = parseReceiptDate(r.date);
+            if (receiptDate && 
+                receiptDate.getMonth() === currentMonth && 
+                receiptDate.getFullYear() === currentYear) {
+                categoryStats[cat].total += (r.total || 0);
+                categoryStats[cat].count += 1;
+            }
+        });
+        
+        // Generate HTML report
+        const reportData = budgetCategories.map(category => {
+            const stats = categoryStats[category.name] || { total: 0, count: 0 };
+            const progress = (stats.total / category.monthlyBudget) * 100;
+            const remaining = category.monthlyBudget - stats.total;
+            
+            return {
+                name: category.name,
+                budget: category.monthlyBudget,
+                spent: stats.total,
+                remaining: remaining,
+                progress: progress,
+                status: progress >= 100 ? 'Over Budget' : 
+                        progress >= 80 ? 'Near Limit' : 'On Track',
+                receiptCount: stats.count
+            };
+        });
+        
+        const totalBudget = budgetCategories.reduce((sum, cat) => sum + cat.monthlyBudget, 0);
+        const totalSpent = reportData.reduce((sum, cat) => sum + cat.spent, 0);
+        const overallProgress = (totalSpent / totalBudget) * 100;
+        
+        const htmlReport = generateBudgetReportHTML(reportData, {
+            monthName,
+            totalBudget,
+            totalSpent,
+            totalRemaining: totalBudget - totalSpent,
+            overallProgress
+        });
+        
+        downloadFile(htmlReport, `budget-report-${monthName.replace(' ', '-').toLowerCase()}.html`, 'text/html');
+        showNotification('Budget report exported!', 'success');
+        
+    } catch (error) {
+        console.error('Budget report export error:', error);
+        showNotification('Failed to export budget report', 'error');
+    }
+}
+
+function generateBudgetReportHTML(reportData, summary) {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Budget Report - ${summary.monthName}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .summary { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; }
+        .summary-item { text-align: center; }
+        .summary-value { font-size: 1.5em; font-weight: bold; color: #2c3e50; }
+        .summary-label { color: #7f8c8d; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #34495e; color: white; }
+        .progress-bar { width: 100px; height: 10px; background: #ecf0f1; border-radius: 5px; }
+        .progress-fill { height: 100%; border-radius: 5px; }
+        .on-track { background: #27ae60; }
+        .warning { background: #f39c12; }
+        .danger { background: #e74c3c; }
+        .status-on-track { color: #27ae60; font-weight: bold; }
+        .status-warning { color: #f39c12; font-weight: bold; }
+        .status-danger { color: #e74c3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Budget Report</h1>
+        <h2>${summary.monthName}</h2>
+        <p>Generated on ${new Date().toLocaleDateString()}</p>
+    </div>
+    
+    <div class="summary">
+        <h3>Monthly Summary</h3>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-value">${formatCurrency(summary.totalBudget)}</div>
+                <div class="summary-label">Total Budget</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">${formatCurrency(summary.totalSpent)}</div>
+                <div class="summary-label">Total Spent</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value" style="color: ${summary.totalRemaining >= 0 ? '#27ae60' : '#e74c3c'}">${formatCurrency(summary.totalRemaining)}</div>
+                <div class="summary-label">${summary.totalRemaining >= 0 ? 'Remaining' : 'Over Budget'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">${summary.overallProgress.toFixed(1)}%</div>
+                <div class="summary-label">Overall Progress</div>
+            </div>
+        </div>
+    </div>
+    
+    <h3>Category Breakdown</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Budget</th>
+                <th>Spent</th>
+                <th>Remaining</th>
+                <th>Progress</th>
+                <th>Status</th>
+                <th>Receipts</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${reportData.map(cat => `
+                <tr>
+                    <td><strong>${cat.name}</strong></td>
+                    <td>${formatCurrency(cat.budget)}</td>
+                    <td>${formatCurrency(cat.spent)}</td>
+                    <td style="color: ${cat.remaining >= 0 ? '#27ae60' : '#e74c3c'}">${formatCurrency(cat.remaining)}</td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${cat.progress >= 100 ? 'danger' : cat.progress >= 80 ? 'warning' : 'on-track'}" 
+                                 style="width: ${Math.min(cat.progress, 100)}%"></div>
+                        </div>
+                        ${cat.progress.toFixed(1)}%
+                    </td>
+                    <td class="status-${cat.progress >= 100 ? 'danger' : cat.progress >= 80 ? 'warning' : 'on-track'}">${cat.status}</td>
+                    <td>${cat.receiptCount}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    </table>
+</body>
+</html>`;
+}
+
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 async function loadAnalytics(){
@@ -1629,6 +1970,7 @@ function openCategoryModal(categoryData = null) {
     const modalTitle = document.getElementById('modal-title');
     const categoryNameInput = document.getElementById('category-name');
     const budgetInput = document.getElementById('category-budget');
+    const subcategoriesInput = document.getElementById('category-subcategories');
     const saveBtn = document.getElementById('save-btn');
     
     console.log('Modal elements found:', { modal, modalTitle, categoryNameInput, saveBtn });
@@ -1648,6 +1990,7 @@ function openCategoryModal(categoryData = null) {
         modalTitle.textContent = 'Edit Category';
         categoryNameInput.value = categoryData.name;
         budgetInput.value = categoryData.monthlyBudget || '';
+        subcategoriesInput.value = categoryData.subcategories ? categoryData.subcategories.join(', ') : '';
         saveBtn.textContent = 'Update Category';
         
         // Select the category's color and icon
@@ -1659,6 +2002,7 @@ function openCategoryModal(categoryData = null) {
         modalTitle.textContent = 'Add New Category';
         categoryNameInput.value = '';
         budgetInput.value = '';
+        subcategoriesInput.value = '';
         saveBtn.textContent = 'Save Category';
         
         // Select default color and icon
@@ -1683,6 +2027,7 @@ async function handleCategorySubmit(e) {
     
     const nameInput = document.getElementById('category-name');
     const budgetInput = document.getElementById('category-budget');
+    const subcategoriesInput = document.getElementById('category-subcategories');
     const selectedColor = document.querySelector('.color-option.selected')?.dataset.color;
     const selectedIcon = document.querySelector('.icon-option.selected')?.dataset.icon;
     
@@ -1691,11 +2036,17 @@ async function handleCategorySubmit(e) {
         return;
     }
     
+    // Process subcategories
+    const subcategoriesText = subcategoriesInput.value.trim();
+    const subcategories = subcategoriesText ? 
+        subcategoriesText.split(',').map(sub => sub.trim()).filter(sub => sub) : [];
+    
     const categoryData = {
         name: nameInput.value.trim(),
         color: selectedColor,
         icon: selectedIcon,
-        monthlyBudget: budgetInput.value ? parseFloat(budgetInput.value) : null
+        monthlyBudget: budgetInput.value ? parseFloat(budgetInput.value) : null,
+        subcategories: subcategories
     };
     
     try {

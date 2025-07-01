@@ -526,6 +526,119 @@
             color: rgba(255, 255, 255, 0.6);
         }
 
+        /* Subcategories display */
+        .subcategories-section {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .subcategories-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 0.5rem;
+        }
+
+        .subcategories-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        .subcategory-tag {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
+        }
+
+        .subcategory-tag:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Export dropdown and category header styles */
+        .category-header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .dropdown {
+            position: relative;
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-export:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .dropdown-arrow {
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+        }
+
+        .dropdown.open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--card-bg, rgba(255, 255, 255, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+            padding: 0.5rem 0;
+            margin-top: 0.5rem;
+            display: none;
+            z-index: 1000;
+        }
+
+        .dropdown.open .dropdown-menu {
+            display: block;
+        }
+
+        .dropdown-item {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-color, rgba(255, 255, 255, 0.9));
+            padding: 0.75rem 1rem;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         /* Search and filter controls */
         .categories-controls {
             margin-bottom: 2rem;
@@ -804,6 +917,40 @@
 
         .theme-light .budget-remaining {
             color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Light theme subcategories styles */
+        .theme-light .subcategories-section {
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .subcategories-label {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .theme-light .subcategory-tag {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .theme-light .subcategory-tag:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Light theme export dropdown styles */
+        .theme-light .dropdown-menu {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .theme-light .dropdown-item {
+            color: #1a1a1a;
+        }
+
+        .theme-light .dropdown-item:hover {
+            background: rgba(0, 0, 0, 0.05);
         }
 
         /* Light theme search and filter styles */
@@ -1300,10 +1447,30 @@
             <div id="categories-page" style="display: none;">
                 <div class="categories-header">
                     <h2>🏷️ Spending Categories</h2>
-                    <button class="btn-add-category" id="add-category-btn">
-                        <span>➕</span>
-                        Add Category
-                    </button>
+                    <div class="category-header-actions">
+                        <div class="dropdown">
+                            <button class="btn-export" id="export-btn">
+                                <span>📊</span>
+                                Export
+                                <span class="dropdown-arrow">▼</span>
+                            </button>
+                            <div class="dropdown-menu" id="export-menu">
+                                <button class="dropdown-item" onclick="exportCategories('csv')">
+                                    📄 Export as CSV
+                                </button>
+                                <button class="dropdown-item" onclick="exportCategories('json')">
+                                    📋 Export as JSON
+                                </button>
+                                <button class="dropdown-item" onclick="exportBudgetReport()">
+                                    📊 Export Budget Report
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn-add-category" id="add-category-btn">
+                            <span>➕</span>
+                            Add Category
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="category-info-banner">
@@ -1413,6 +1580,12 @@
                             <label class="form-label" for="category-budget">Monthly Budget (Optional)</label>
                             <input type="number" id="category-budget" class="form-input" placeholder="Enter monthly budget amount" min="0" step="0.01">
                             <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Leave empty for no budget tracking</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="category-subcategories">Subcategories (Optional)</label>
+                            <input type="text" id="category-subcategories" class="form-input" placeholder="Enter subcategories separated by commas (e.g. Groceries, Restaurants, Takeout)">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Separate multiple subcategories with commas</small>
                         </div>
                         
                         <div class="modal-buttons">
