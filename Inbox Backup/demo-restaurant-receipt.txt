@@ -1,0 +1,44 @@
+OLIVE GARDEN ITALIAN RESTAURANT
+2850 Commercial St SE
+Salem, OR 97302
+Phone: (503) 585-4134
+
+Server: Maria R.        Table: 15
+Date: 07/01/2025       Time: 7:45 PM
+Guests: 2              Check #: 5847
+
+ORDER DETAILS:
+---------------------------------
+Appetizer:
+  Calamari                    $9.99
+
+Entrees:
+  Chicken Alfredo            $16.99
+  Shrimp Scampi              $18.99
+
+Sides:
+  Breadsticks (unlimited)     $0.00
+  House Salad (2)             $7.98
+
+Beverages:
+  Coca-Cola                   $3.29
+  Iced Tea                    $3.29
+
+Dessert:
+  Tiramisu                    $7.99
+
+SUBTOTAL:                    $68.52
+Tax (OR 8.75%):               $6.00
+TOTAL:                       $74.52
+
+TIP (18%):                   $13.41
+GRAND TOTAL:                 $87.93
+
+PAYMENT: Mastercard ****5678
+Auth Code: 789456
+Transaction: MC240701194522
+
+Thank you for dining with us!
+Follow us @OliveGarden
+
+Receipt ID: OG20250701-194522 

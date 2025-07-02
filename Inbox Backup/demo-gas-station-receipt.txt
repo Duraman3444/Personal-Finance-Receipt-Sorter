@@ -1,0 +1,36 @@
+SHELL STATION #4821
+1205 PACIFIC HWY S
+SEATTLE, WA 98168
+Phone: (206) 243-9876
+
+Date: 07/01/2025
+Time: 1:15 PM
+
+PUMP: 3
+PRODUCT: Unleaded 87
+GALLONS: 12.847
+PRICE/GALLON: $4.299
+
+FUEL TOTAL:              $55.23
+
+ADDITIONAL ITEMS:
+Coffee (Large)            $2.99
+Energy Drink              $3.49
+Car Wash (Basic)          $8.99
+
+MERCHANDISE TOTAL:       $15.47
+FUEL TOTAL:              $55.23
+SUBTOTAL:                $70.70
+Tax (WA 10.25%):          $1.58
+TOTAL:                   $72.28
+
+PAYMENT: Debit ****9012
+PIN VERIFIED
+Auth: 556749
+Trans ID: SH20250701-131502
+
+Thank you for choosing Shell!
+Fuel Rewards Member: Yes
+Points Earned: 145
+
+Receipt #: SH-4821-071025-131502 
