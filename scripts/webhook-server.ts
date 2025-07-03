@@ -184,29 +184,43 @@ server.post('/suggest-budget', async (req, res) => {
 // AI Insights endpoint
 server.post('/ai-insights', async (req, res) => {
   try {
-    const { receipts } = req.body as { receipts: any[] };
+    const { receipts, maxInsights } = req.body as { receipts: any[]; maxInsights?: number };
+    const targetCount = Math.max(1, Math.min(Number(maxInsights) || 10, 50));
     if (!Array.isArray(receipts) || receipts.length === 0) {
       return res.status(400).json({ success: false, error: 'receipts array required' });
     }
 
-    // Limit to 100 receipts to keep prompt reasonable
-    const sampleReceipts = receipts.slice(0, 100);
-
+    // Limit to 400 receipts to keep prompt reasonable but allow richer context
+    const sampleReceipts = receipts.slice(0, 400);
+    
     // Helper to build heuristic insights
     const heuristic = () => {
       const total = sampleReceipts.reduce((sum, r) => sum + (r.total || 0), 0);
+      const avgAmount = (total / sampleReceipts.length).toFixed(2);
       const days = 30;
       const avgPerDay = (total / days).toFixed(2);
-      // top category
+      
+      // Top category by spend
       const catTotals: Record<string, number> = {};
       sampleReceipts.forEach(r => {
         const cat = r.category || 'Uncategorized';
         catTotals[cat] = (catTotals[cat] || 0) + (r.total || 0);
       });
-      const topCategory = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0][0];
-      // largest receipt
+      const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+      const [topCategory, topCatTotal] = sortedCats[0];
+      
+      // Most frequent vendor
+      const vendorCounts: Record<string, number> = {};
+      sampleReceipts.forEach(r => {
+        const v = r.vendor || 'Unknown Vendor';
+        vendorCounts[v] = (vendorCounts[v] || 0) + 1;
+      });
+      const topVendor = Object.entries(vendorCounts).sort((a,b)=>b[1]-a[1])[0];
+      
+      // Largest receipt
       const largest = sampleReceipts.reduce((max,r)=> (r.total||0) > (max.total||0) ? r : max, sampleReceipts[0]);
-      return `- You spent most on **${topCategory}** in the last months.\n- Average daily spend is **$${avgPerDay}**.\n- Largest single receipt was **$${largest.total || 0}** at ${largest.vendor || 'Unknown Vendor'}.`;
+      
+      return `- Total spend in period: **$${total.toFixed(2)}** across ${sampleReceipts.length} receipts.\n- Average receipt amount: **$${avgAmount}** and average daily spend: **$${avgPerDay}**.\n- Highest spending category is **${topCategory}** at $${topCatTotal.toFixed(2)} (${((topCatTotal/total)*100).toFixed(1)}% of spend).\n- You visited **${topVendor[0]}** most often (${topVendor[1]} times).\n- Largest single purchase was **$${largest.total || 0}** at ${largest.vendor || 'Unknown Vendor'}.`;
     };
 
     if (!openai) {
@@ -214,7 +228,7 @@ server.post('/ai-insights', async (req, res) => {
     }
 
     const messages = [
-      { role: 'system', content: 'You are a personal-finance analyst. Given purchase receipts, generate up to three high-level insights for the user. Return the insights as Markdown bullet points.' },
+      { role: 'system', content: `You are a seasoned personal-finance analyst. Given a list of purchase receipts (JSON objects with vendor, date, category, and total), generate up to ${targetCount} detailed, data-driven insights that help the user understand their spending habits. Go beyond the obvious by covering areas such as: top categories, average daily spend, trends, anomalies, recommendations, and vendor breakdowns. Return the insights as concise Markdown bullet points **only** – no introduction or conclusion.` },
       { role: 'user', content: JSON.stringify(sampleReceipts) }
     ];
 
@@ -224,7 +238,14 @@ server.post('/ai-insights', async (req, res) => {
       messages: messages as any
     });
 
-    const raw = completion.choices?.[0]?.message?.content?.trim() || heuristic();
+    let raw = completion.choices?.[0]?.message?.content?.trim() || heuristic();
+
+    // Ensure we have at least 5 bullet points; otherwise fallback
+    const bulletCount = (raw.match(/^\-\s/mg) || []).length;
+    if (bulletCount < 5) {
+      raw = heuristic();
+    }
+
     res.json({ success: true, insights: raw });
   } catch (error) {
     console.error('❌ AI insights error:', error);

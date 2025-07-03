@@ -10,6 +10,9 @@ let userPrefs = { defaultCurrency: 'USD', showNotifications: true };
 // Global AI budget suggestions cache (category -> suggested monthly budget)
 window.budgetSuggestions = {};
 
+// Global cache for AI Hub data (insights, budgets, anomalies, predictions)
+window.aiHubData = { insights: '', budgets: '', anomalies: '', predictions: '' };
+
 // Status indicators
 const firebaseStatus = document.getElementById('firebase-status');
 const firebaseText = document.getElementById('firebase-text');
@@ -82,7 +85,40 @@ function setupEventListeners() {
     // AI Insights button
     const aiInsightsBtn = document.getElementById('ai-insights-btn');
     if (aiInsightsBtn) {
-        aiInsightsBtn.addEventListener('click', generateAIInsights);
+        aiInsightsBtn.addEventListener('click', () => generateAIInsights(40));
+    }
+
+    // AI Hub page buttons
+    const aihubInsightsBtn = document.getElementById('aihub-insights-btn');
+    if (aihubInsightsBtn) {
+        aihubInsightsBtn.addEventListener('click', () => generateAIInsights(40));
+    }
+    const aihubBudgetBtn = document.getElementById('aihub-budget-btn');
+    if (aihubBudgetBtn) {
+        aihubBudgetBtn.addEventListener('click', generateBudgetSuggestions);
+    }
+
+    // Additional AI Hub buttons
+    const aihubRefreshBtn = document.getElementById('aihub-refresh-btn');
+    if (aihubRefreshBtn) {
+        aihubRefreshBtn.addEventListener('click', () => {
+            generateAIInsights(40);
+            generateBudgetSuggestions();
+            detectAnomalies();
+            predictNextMonthSpend();
+        });
+    }
+    const aihubAnomalyBtn = document.getElementById('aihub-analyze-btn');
+    if (aihubAnomalyBtn) {
+        aihubAnomalyBtn.addEventListener('click', detectAnomalies);
+    }
+    const aihubPredictBtn = document.getElementById('aihub-predict-btn');
+    if (aihubPredictBtn) {
+        aihubPredictBtn.addEventListener('click', predictNextMonthSpend);
+    }
+    const aihubExportBtn = document.getElementById('aihub-export-btn');
+    if (aihubExportBtn) {
+        aihubExportBtn.addEventListener('click', exportAIHubReport);
     }
 }
 
@@ -225,6 +261,9 @@ function switchPage(pageName) {
     }
     if (pageName === 'analytics') {
         loadAnalytics();
+    }
+    if (pageName === 'ai') {
+        loadAIHub();
     }
     if (pageName === 'settings') {
         loadSettings();
@@ -3532,7 +3571,7 @@ async function generateBudgetSuggestions() {
     }
 }
 
-async function generateAIInsights() {
+async function generateAIInsights(maxInsights = 10) {
     try {
         const receipts = window.currentAnalyticsData || window.firebaseClient.getCachedReceipts(1000);
         if (!receipts.length) {
@@ -3544,7 +3583,7 @@ async function generateAIInsights() {
         const resp = await fetch('http://localhost:3001/ai-insights', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ receipts: receipts.slice(0, 100) })
+            body: JSON.stringify({ receipts: receipts.slice(0, 300), maxInsights })
         });
         if (!resp.ok) {
             showNotification(`Server error ${resp.status}`, 'error');
@@ -3575,8 +3614,133 @@ async function generateAIInsights() {
             }
         });
         document.body.appendChild(modal);
+
+        // Cache
+        window.aiHubData.insights = html;
+
+        const inlineContainer = document.getElementById('ai-insights-content');
+        const aiPage = document.getElementById('ai-page');
+        if (inlineContainer && aiPage && aiPage.style.display !== 'none') {
+            inlineContainer.innerHTML = html;
+        } else {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:600px;">
+                    <div class="modal-header">
+                        <h3 class="modal-title">💡 AI Insights</h3>
+                        <button class="close" id="ai-insights-close">&times;</button>
+                    </div>
+                    <div style="padding:1rem; max-height:70vh; overflow-y:auto; color:var(--text-color, #fff);">${html}</div>
+                </div>`;
+            modal.addEventListener('click', (e) => {
+                const tgt = /** @type {HTMLElement} */ (e.target);
+                if (tgt === modal || tgt.id === 'ai-insights-close') {
+                    modal.remove();
+                }
+            });
+            document.body.appendChild(modal);
+        }
+
+        showNotification('Budget suggestions ready', 'success');
+        // Cache budgets HTML fragment
+        window.aiHubData.budgets = window.budgetSuggestions;
+
+        // If AI Hub page visible, render suggestions inline
+        const budgetContainer = document.getElementById('ai-budget-content');
+        const aiHubPage = document.getElementById('ai-page');
+        if (budgetContainer && aiHubPage && aiHubPage.style.display !== 'none') {
+            const rows = Object.entries(window.budgetSuggestions).map(([cat, val]) => `<div><strong>${cat}</strong>: ${formatCurrency(val)}</div>`).join('');
+            budgetContainer.innerHTML = rows || '<p>No suggestions returned.</p>';
+        }
     } catch (err) {
         console.error('AI insights error', err);
         showNotification('Failed to generate AI insights', 'error');
+    }
+}
+
+async function detectAnomalies() {
+    try {
+        const receipts = window.firebaseClient.getCachedReceipts(1000);
+        if (!receipts.length) return;
+        const avg = receipts.reduce((s, r) => s + (r.total || 0), 0) / receipts.length;
+        const threshold = avg * 3; // arbitrary
+        const anomalies = receipts.filter(r => (r.total || 0) > threshold);
+        const html = anomalies.length ? anomalies.map(a => `• ${a.vendor || 'Unknown'} – ${formatCurrency(a.total)} on ${a.date}`).join('<br>') : 'No anomalies detected.';
+        window.aiHubData.anomalies = html;
+        const el = document.getElementById('ai-anomaly-content');
+        if (el) el.innerHTML = html;
+        showNotification('Anomaly detection completed', 'success');
+    } catch (err) {
+        console.error(err);
+        showNotification('Failed to detect anomalies', 'error');
+    }
+}
+
+async function predictNextMonthSpend() {
+    try {
+        const receipts = window.firebaseClient.getCachedReceipts(1000);
+        if (!receipts.length) return;
+        // simple monthly projection based on last 3 months avg.
+        const now = new Date();
+        const monthlyTotals = {};
+        receipts.forEach(r => {
+            const d = parseReceiptDate(r.date);
+            if (!d) return;
+            const key = d.getFullYear() + '-' + (d.getMonth() + 1);
+            monthlyTotals[key] = (monthlyTotals[key] || 0) + (r.total || 0);
+        });
+        const keys = Object.keys(monthlyTotals).sort().slice(-3);
+        const avg = keys.reduce((s, k) => s + monthlyTotals[k], 0) / Math.max(keys.length, 1);
+        const html = `Estimated spend next month based on recent trend: <strong>${formatCurrency(avg)}</strong>`;
+        window.aiHubData.predictions = html;
+        const el = document.getElementById('ai-prediction-content');
+        if (el) el.innerHTML = html;
+        showNotification('Prediction ready', 'success');
+    } catch (err) {
+        console.error(err);
+        showNotification('Failed to generate prediction', 'error');
+    }
+}
+
+function exportAIHubReport() {
+    try {
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AI Hub Report</title></head><body style="font-family:Arial; line-height:1.5; padding:2rem;">`+
+            `<h1>AI Hub Report</h1>`+
+            `<h2>Insights</h2><div>${window.aiHubData.insights || 'No insights'}</div>`+
+            `<h2>Budget Suggestions</h2><div>${Object.entries(window.budgetSuggestions).map(([c,v])=>`<div>${c}: ${formatCurrency(v)}</div>`).join('') || 'No suggestions'}</div>`+
+            `<h2>Anomalies</h2><div>${window.aiHubData.anomalies || 'N/A'}</div>`+
+            `<h2>Predictions</h2><div>${window.aiHubData.predictions || 'N/A'}</div>`+
+            `<footer style="margin-top:2rem; font-size:0.8rem;">Generated ${new Date().toLocaleString()}</footer></body></html>`;
+        downloadFile(html, `ai-hub-report-${new Date().toISOString().split('T')[0]}.html`, 'text/html');
+        showNotification('AI Hub report exported', 'success');
+    } catch (err) {
+        console.error(err);
+        showNotification('Failed to export AI Hub report', 'error');
+    }
+}
+
+function loadAIHub() {
+    const insightsContent = document.getElementById('ai-insights-content');
+    if (insightsContent) {
+        insightsContent.innerHTML = window.aiHubData.insights || '<p style="opacity:0.7">No insights yet.</p>';
+    }
+    const budgetContent = document.getElementById('ai-budget-content');
+    if (budgetContent) {
+        if (Object.keys(window.budgetSuggestions).length) {
+            const rows = Object.entries(window.budgetSuggestions).map(([cat, val]) => `<div><strong>${cat}</strong>: ${formatCurrency(val)}</div>`).join('');
+            budgetContent.innerHTML = rows;
+        } else {
+            budgetContent.innerHTML = '<p style="opacity:0.7">No suggestions yet.</p>';
+        }
+    }
+    const anomalyContent = document.getElementById('ai-anomaly-content');
+    if (anomalyContent) {
+        anomalyContent.innerHTML = window.aiHubData.anomalies || '<p style="opacity:0.7">No anomalies detected yet.</p>';
+    }
+    const predContent = document.getElementById('ai-prediction-content');
+    if (predContent) {
+        predContent.innerHTML = window.aiHubData.predictions || '<p style="opacity:0.7">No predictions yet.</p>';
     }
 }

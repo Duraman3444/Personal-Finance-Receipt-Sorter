@@ -1429,6 +1429,7 @@
             <a href="#" class="nav-item" data-page="receipts">🧾 Receipts</a>
             <a href="#" class="nav-item" data-page="categories">🏷️ Categories</a>
             <a href="#" class="nav-item" data-page="analytics">📈 Analytics</a>
+            <a href="#" class="nav-item" data-page="ai">🤖 AI Hub</a>
             <a href="#" class="nav-item" data-page="settings">⚙️ Settings</a>
         </nav>
 
@@ -1826,6 +1827,22 @@
                             <span>Loading insights...</span>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- AI Hub Page -->
+            <div id="ai-page" style="display: none;">
+                <div class="welcome-card">
+                    <h2>🤖 AI Hub</h2>
+                    <p>Harness AI to gain deeper insights and smarter budgets.</p>
+                    <div style="display:flex; gap:1rem; margin:1rem 0 2rem 0; flex-wrap:wrap;">
+                        <button class="btn" id="aihub-insights-btn">💡 Generate Insights</button>
+                        <button class="btn" id="aihub-budget-btn">💰 Suggest Budgets</button>
+                    </div>
+                    <h3 style="margin-bottom:0.5rem;">💡 Insights</h3>
+                    <div id="ai-insights-content" style="min-height:3rem; line-height:1.6; margin-bottom:2rem; opacity:0.8;">No insights yet.</div>
+                    <h3 style="margin-bottom:0.5rem;">💰 Budget Suggestions</h3>
+                    <div id="ai-budget-content" style="min-height:3rem; line-height:1.6; opacity:0.8;">No suggestions yet.</div>
                 </div>
             </div>
 
