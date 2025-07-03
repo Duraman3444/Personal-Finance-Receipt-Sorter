@@ -126,24 +126,6 @@ function setupEventListeners() {
     if (aihubAdviceBtn) {
         aihubAdviceBtn.addEventListener('click', generateSavingsAdvice);
     }
-
-    // Budget tab toggles
-    const budgetValuesTab = document.getElementById('budget-tab-values');
-    const budgetReasonsTab = document.getElementById('budget-tab-reasons');
-    if (budgetValuesTab && budgetReasonsTab) {
-        budgetValuesTab.addEventListener('click', () => {
-            document.getElementById('ai-budget-content').style.display = 'block';
-            document.getElementById('ai-budget-reasons').style.display = 'none';
-            budgetValuesTab.classList.add('active');
-            budgetReasonsTab.classList.remove('active');
-        });
-        budgetReasonsTab.addEventListener('click', () => {
-            document.getElementById('ai-budget-content').style.display = 'none';
-            document.getElementById('ai-budget-reasons').style.display = 'block';
-            budgetValuesTab.classList.remove('active');
-            budgetReasonsTab.classList.add('active');
-        });
-    }
 }
 
 function setupRealTimeSync() {
@@ -3576,7 +3558,7 @@ async function generateBudgetSuggestions() {
         }
         // Cache suggestions
         window.budgetSuggestions = (res.suggestions || []).reduce((acc, s) => {
-            acc[s.category] = { budget: s.suggested_budget, reason: s.reason || '' };
+            acc[s.category] = s.suggested_budget;
             return acc;
         }, {});
         showNotification('Budget suggestions ready', 'success');
@@ -3675,14 +3657,8 @@ async function generateAIInsights(maxInsights = 10) {
         const budgetContainer = document.getElementById('ai-budget-content');
         const aiHubPage = document.getElementById('ai-page');
         if (budgetContainer && aiHubPage && aiHubPage.style.display !== 'none') {
-            const rows = Object.entries(window.budgetSuggestions).map(([cat, obj]) => `<div><strong>${cat}</strong>: ${formatCurrency(obj.budget)} — ${obj.reason || ''}</div>`).join('');
+            const rows = Object.entries(window.budgetSuggestions).map(([cat, val]) => `<div><strong>${cat}</strong>: ${formatCurrency(val)}</div>`).join('');
             budgetContainer.innerHTML = rows || '<p>No suggestions returned.</p>';
-
-            const reasonPane = document.getElementById('ai-budget-reasons');
-            if (reasonPane) {
-                const rs = Object.entries(window.budgetSuggestions).map(([cat, obj]) => `<div><strong>${cat}</strong>: ${obj.reason || '—'}</div>`).join('');
-                reasonPane.innerHTML = rs || '<p>No reasons.</p>';
-            }
         }
     } catch (err) {
         console.error('AI insights error', err);

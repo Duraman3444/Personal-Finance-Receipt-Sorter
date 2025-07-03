@@ -150,8 +150,7 @@ server.post('/suggest-budget', async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       const suggestions = categories.map(c => ({
         category: c.category,
-        suggested_budget: Math.round((c.lastThreeMonthTotal || 0) / 3),
-        reason: 'Set to roughly one-third of your last-3-month spending in this category.'
+        suggested_budget: Math.round((c.lastThreeMonthTotal || 0) / 3)
       }));
       return res.json({ success: true, suggestions, fallback: true });
     }
@@ -161,7 +160,7 @@ server.post('/suggest-budget', async (req, res) => {
       {
         role: 'system',
         content:
-          'You are a personal-finance assistant. For each category with its lastThreeMonthTotal, propose a reasonable monthly budget (whole dollars) **and** briefly explain (2-3 well-developed sentences) why that budget makes sense. Return ONLY a JSON array where each object is {"category":"Dining","suggested_budget":120,"reason":"…"}. No extra keys or text.'
+          'You are a personal-finance assistant. For each category with its lastThreeMonthTotal, propose a reasonable monthly budget (whole dollars). Return ONLY JSON array like [{"category":"Dining","suggested_budget":120}] without additional keys.'
       },
       { role: 'user', content: JSON.stringify(categories) }
     ];
@@ -229,7 +228,7 @@ server.post('/ai-insights', async (req, res) => {
     }
 
     const messages = [
-      { role: 'system', content: `You are a seasoned personal-finance analyst. Given a list of purchase receipts (JSON objects with vendor, date, category, and total), generate up to ${targetCount} detailed, data-driven insights that help the user understand their spending habits. Each bullet should be 2–3 well-developed sentences covering areas such as: top categories, daily spend, notable trends, anomalies, vendor breakdowns, and actionable recommendations. Return the insights as Markdown bullet points **only** – no intro or outro.` },
+      { role: 'system', content: `You are a seasoned personal-finance analyst. Given a list of purchase receipts (JSON objects with vendor, date, category, and total), generate up to ${targetCount} detailed, data-driven insights that help the user understand their spending habits. Go beyond the obvious by covering areas such as: top categories, average daily spend, trends, anomalies, recommendations, and vendor breakdowns. Return the insights as concise Markdown bullet points **only** – no introduction or conclusion.` },
       { role: 'user', content: JSON.stringify(sampleReceipts) }
     ];
 
@@ -278,7 +277,7 @@ server.post('/saving-advice', async (req, res) => {
     }
 
     const messages = [
-      { role: 'system', content: `You are an elite personal finance coach. Analyse the provided purchase receipts and craft up to ${tipsCount} actionable money-saving ideas. Structure the answer with Markdown headings for opportunity areas (e.g. ## High-Ticket Purchases, ## Subscriptions, ## Grocery Optimisation, ## Eating Out, ## Miscellaneous) and place 2–3 sentence bullet points under each heading. Focus on concrete, data-driven advice referencing spend categories or vendors.` },
+      { role: 'system', content: `You are an elite personal finance coach. Analyse the provided purchase receipts and craft up to ${tipsCount} actionable money-saving ideas. Structure the answer with Markdown headings for different opportunity areas (e.g. ## High-Ticket Purchases, ## Subscriptions, ## Grocery Optimisation, ## Eating Out, ## Miscellaneous) and list concise bullet-point tips under each heading. Focus on concrete, data-driven advice that references categories or vendors when useful.` },
       { role: 'user', content: JSON.stringify(receipts.slice(0, 400)) }
     ];
 
