@@ -253,6 +253,48 @@ server.post('/ai-insights', async (req, res) => {
   }
 });
 
+// Saving advice endpoint
+server.post('/saving-advice', async (req, res) => {
+  try {
+    const { receipts, maxTips } = req.body as { receipts: any[]; maxTips?: number };
+    if (!Array.isArray(receipts) || receipts.length === 0) {
+      return res.status(400).json({ success: false, error: 'receipts array required' });
+    }
+
+    const tipsCount = Math.max(5, Math.min(Number(maxTips) || 25, 50));
+
+    // Heuristic fallback
+    const heuristic = () => {
+      const total = receipts.reduce((s, r) => s + (r.total || 0), 0);
+      const avg = total / receipts.length;
+      const big = receipts.filter(r => (r.total || 0) > avg * 1.5);
+      const bigVendors = new Set(big.map(r => r.vendor || ''));
+      return `- Review large purchases from vendors like ${Array.from(bigVendors).slice(0,3).join(', ')}.\n- Set monthly spending targets below your current average receipt of $${avg.toFixed(2)}.\n- Consider meal planning to reduce dining expenses.`;
+    };
+
+    if (!openai) {
+      return res.json({ success: true, advice: heuristic(), fallback: true });
+    }
+
+    const messages = [
+      { role: 'system', content: `You are an elite personal finance coach. Analyse the provided purchase receipts and craft up to ${tipsCount} actionable money-saving ideas. Structure the answer with Markdown headings for different opportunity areas (e.g. ## High-Ticket Purchases, ## Subscriptions, ## Grocery Optimisation, ## Eating Out, ## Miscellaneous) and list concise bullet-point tips under each heading. Focus on concrete, data-driven advice that references categories or vendors when useful.` },
+      { role: 'user', content: JSON.stringify(receipts.slice(0, 400)) }
+    ];
+
+    const completion = await openai!.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      messages: messages as any
+    });
+
+    const raw = completion.choices?.[0]?.message?.content?.trim() || heuristic();
+    res.json({ success: true, advice: raw });
+  } catch (error) {
+    console.error('❌ Saving advice error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 const PORT = process.env.WEBHOOK_PORT || 3001;
 
 server.listen(PORT, () => {

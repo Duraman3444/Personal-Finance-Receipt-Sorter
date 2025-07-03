@@ -11,7 +11,7 @@ let userPrefs = { defaultCurrency: 'USD', showNotifications: true };
 window.budgetSuggestions = {};
 
 // Global cache for AI Hub data (insights, budgets, anomalies, predictions)
-window.aiHubData = { insights: '', budgets: '', anomalies: '', predictions: '' };
+window.aiHubData = { insights: '', budgets: '', anomalies: '', predictions: '', advice: '' };
 
 // Status indicators
 const firebaseStatus = document.getElementById('firebase-status');
@@ -119,6 +119,12 @@ function setupEventListeners() {
     const aihubExportBtn = document.getElementById('aihub-export-btn');
     if (aihubExportBtn) {
         aihubExportBtn.addEventListener('click', exportAIHubReport);
+    }
+
+    // After AI Hub buttons setup
+    const aihubAdviceBtn = document.getElementById('aihub-advice-btn');
+    if (aihubAdviceBtn) {
+        aihubAdviceBtn.addEventListener('click', generateSavingsAdvice);
     }
 }
 
@@ -3742,5 +3748,69 @@ function loadAIHub() {
     const predContent = document.getElementById('ai-prediction-content');
     if (predContent) {
         predContent.innerHTML = window.aiHubData.predictions || '<p style="opacity:0.7">No predictions yet.</p>';
+    }
+
+    const adviceContent = document.getElementById('ai-advice-content');
+    if (adviceContent) {
+        adviceContent.innerHTML = window.aiHubData.advice || '<p style="opacity:0.7">No advice yet.</p>';
+    }
+}
+
+async function generateSavingsAdvice(maxTips = 30) {
+    try {
+        const receipts = window.currentAnalyticsData || window.firebaseClient.getCachedReceipts(1000);
+        if (!receipts.length) {
+            showNotification('No receipt data available', 'info');
+            return;
+        }
+
+        showNotification('Generating savings advice…', 'info');
+        const resp = await fetch('http://localhost:3001/saving-advice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receipts: receipts.slice(0, 400), maxTips })
+        });
+        if (!resp.ok) {
+            showNotification(`Server error ${resp.status}`, 'error');
+            return;
+        }
+        const res = await resp.json();
+        if (!res.success) {
+            showNotification(res.error || 'Failed to generate advice', 'error');
+            return;
+        }
+
+        const html = (res.advice || '').replace(/\n/g, '<br>');
+        window.aiHubData.advice = html;
+
+        const adviceContainer = document.getElementById('ai-advice-content');
+        const aiPage = document.getElementById('ai-page');
+        if (adviceContainer && aiPage && aiPage.style.display !== 'none') {
+            adviceContainer.innerHTML = html;
+        } else {
+            // show modal
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:600px;">
+                    <div class="modal-header">
+                        <h3 class="modal-title">💡 Savings Advice</h3>
+                        <button class="close" id="ai-advice-close">&times;</button>
+                    </div>
+                    <div style="padding:1rem; max-height:70vh; overflow-y:auto; color:var(--text-color, #fff);">${html}</div>
+                </div>`;
+            modal.addEventListener('click', (e) => {
+                const tgt = /** @type {HTMLElement} */ (e.target);
+                if (tgt === modal || tgt.id === 'ai-advice-close') {
+                    modal.remove();
+                }
+            });
+            document.body.appendChild(modal);
+        }
+        showNotification('Savings advice ready', 'success');
+    } catch (err) {
+        console.error(err);
+        showNotification('Failed to generate advice', 'error');
     }
 }
