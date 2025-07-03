@@ -78,6 +78,12 @@ function setupEventListeners() {
     if (suggestBudgetBtn) {
         suggestBudgetBtn.addEventListener('click', generateBudgetSuggestions);
     }
+
+    // AI Insights button
+    const aiInsightsBtn = document.getElementById('ai-insights-btn');
+    if (aiInsightsBtn) {
+        aiInsightsBtn.addEventListener('click', generateAIInsights);
+    }
 }
 
 function setupRealTimeSync() {
@@ -3514,8 +3520,63 @@ async function generateBudgetSuggestions() {
         // Re-render categories to show suggestions
         const categories = window.firebaseClient.getCachedCategories();
         renderCategoriesPage(categories);
+        // Re-bind export dropdown listeners since DOM updated
+        setTimeout(() => {
+            if (typeof setupExportDropdown === 'function') {
+                setupExportDropdown();
+            }
+        }, 50);
     } catch (err) {
         console.error('Budget suggestion error', err);
         showNotification('Failed to generate budget suggestions', 'error');
+    }
+}
+
+async function generateAIInsights() {
+    try {
+        const receipts = window.currentAnalyticsData || window.firebaseClient.getCachedReceipts(1000);
+        if (!receipts.length) {
+            showNotification('No analytics data available', 'info');
+            return;
+        }
+
+        showNotification('Generating AI insights…', 'info');
+        const resp = await fetch('http://localhost:3001/ai-insights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receipts: receipts.slice(0, 100) })
+        });
+        if (!resp.ok) {
+            showNotification(`Server error ${resp.status}`, 'error');
+            return;
+        }
+        const res = await resp.json();
+        if (!res.success) {
+            showNotification(res.error || 'Failed to generate insights', 'error');
+            return;
+        }
+
+        const html = (res.insights || '').replace(/\n/g, '<br>');
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:500px;">
+                <div class="modal-header">
+                    <h3 class="modal-title">💡 AI Insights</h3>
+                    <button class="close" id="ai-insights-close">&times;</button>
+                </div>
+                <div style="padding:1rem; color:var(--text-color, #fff);">${html}</div>
+            </div>`;
+        modal.addEventListener('click', (e) => {
+            const tgt = /** @type {HTMLElement} */ (e.target);
+            if (tgt === modal || tgt.id === 'ai-insights-close') {
+                modal.remove();
+            }
+        });
+        document.body.appendChild(modal);
+    } catch (err) {
+        console.error('AI insights error', err);
+        showNotification('Failed to generate AI insights', 'error');
     }
 }

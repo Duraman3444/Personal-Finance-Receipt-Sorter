@@ -181,6 +181,57 @@ server.post('/suggest-budget', async (req, res) => {
   }
 });
 
+// AI Insights endpoint
+server.post('/ai-insights', async (req, res) => {
+  try {
+    const { receipts } = req.body as { receipts: any[] };
+    if (!Array.isArray(receipts) || receipts.length === 0) {
+      return res.status(400).json({ success: false, error: 'receipts array required' });
+    }
+
+    // Limit to 100 receipts to keep prompt reasonable
+    const sampleReceipts = receipts.slice(0, 100);
+
+    // Helper to build heuristic insights
+    const heuristic = () => {
+      const total = sampleReceipts.reduce((sum, r) => sum + (r.total || 0), 0);
+      const days = 30;
+      const avgPerDay = (total / days).toFixed(2);
+      // top category
+      const catTotals: Record<string, number> = {};
+      sampleReceipts.forEach(r => {
+        const cat = r.category || 'Uncategorized';
+        catTotals[cat] = (catTotals[cat] || 0) + (r.total || 0);
+      });
+      const topCategory = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0][0];
+      // largest receipt
+      const largest = sampleReceipts.reduce((max,r)=> (r.total||0) > (max.total||0) ? r : max, sampleReceipts[0]);
+      return `- You spent most on **${topCategory}** in the last months.\n- Average daily spend is **$${avgPerDay}**.\n- Largest single receipt was **$${largest.total || 0}** at ${largest.vendor || 'Unknown Vendor'}.`;
+    };
+
+    if (!openai) {
+      return res.json({ success: true, insights: heuristic(), fallback: true });
+    }
+
+    const messages = [
+      { role: 'system', content: 'You are a personal-finance analyst. Given purchase receipts, generate up to three high-level insights for the user. Return the insights as Markdown bullet points.' },
+      { role: 'user', content: JSON.stringify(sampleReceipts) }
+    ];
+
+    const completion = await openai!.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: messages as any
+    });
+
+    const raw = completion.choices?.[0]?.message?.content?.trim() || heuristic();
+    res.json({ success: true, insights: raw });
+  } catch (error) {
+    console.error('❌ AI insights error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 const PORT = process.env.WEBHOOK_PORT || 3001;
 
 server.listen(PORT, () => {
