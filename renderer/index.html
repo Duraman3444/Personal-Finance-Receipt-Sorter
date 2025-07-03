@@ -177,6 +177,12 @@
             gap: 1rem;
         }
 
+        .analytics-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
         .date-range-selector {
             display: flex;
             gap: 0.5rem;
@@ -1461,9 +1467,58 @@
 
             <!-- Other pages will be added here -->
             <div id="receipts-page" style="display: none;">
+                <div class="analytics-header">
+                    <h2>📧 Recent Receipts</h2>
+                    <div class="category-header-actions">
+                        <div class="dropdown">
+                            <button class="btn-export" id="receipts-export-btn">
+                                <span>📊</span>
+                                Export
+                                <span class="dropdown-arrow">▼</span>
+                            </button>
+                            <div class="dropdown-menu" id="receipts-export-menu">
+                                <button class="dropdown-item" onclick="exportReceipts('csv')">
+                                    📄 Export as CSV
+                                </button>
+                                <button class="dropdown-item" onclick="exportReceipts('json')">
+                                    📋 Export as JSON
+                                </button>
+                                <button class="dropdown-item" onclick="exportReceiptsSummary()">
+                                    📊 Export Summary Report
+                                </button>
+                                <button class="dropdown-item" onclick="exportAnalyticsReport()">
+                                    📈 Export Analytics Report
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn" onclick="loadReceipts()">
+                            <span>🔄</span>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                
                 <div class="welcome-card">
-                    <h2>Recent Receipts</h2>
-                    <p>Your processed receipts will appear here...</p>
+                    <div id="receipts-summary" style="display: none;">
+                        <div class="category-details-stats">
+                            <div class="detail-stat">
+                                <span class="detail-stat-value" id="receipts-total-amount">$0</span>
+                                <span class="detail-stat-label">Total Amount</span>
+                            </div>
+                            <div class="detail-stat">
+                                <span class="detail-stat-value" id="receipts-count">0</span>
+                                <span class="detail-stat-label">Total Receipts</span>
+                            </div>
+                            <div class="detail-stat">
+                                <span class="detail-stat-value" id="receipts-avg-amount">$0</span>
+                                <span class="detail-stat-label">Average Amount</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="receipts-list">
+                        <!-- Receipts will be loaded here -->
+                    </div>
                 </div>
             </div>
 
@@ -1486,6 +1541,9 @@
                                 </button>
                                 <button class="dropdown-item" onclick="exportBudgetReport()">
                                     📊 Export Budget Report
+                                </button>
+                                <button class="dropdown-item" onclick="exportAnalyticsReport()">
+                                    📈 Export Analytics Report
                                 </button>
                             </div>
                         </div>
@@ -1664,11 +1722,28 @@
             <div id="analytics-page" style="display: none;">
                 <div class="analytics-header">
                     <h2>📈 Spending Analytics</h2>
-                    <div class="date-range-selector">
-                        <button class="date-range-btn active" data-range="all">All Time</button>
-                        <button class="date-range-btn" data-range="30">Last 30 Days</button>
-                        <button class="date-range-btn" data-range="90">Last 3 Months</button>
-                        <button class="date-range-btn" data-range="365">This Year</button>
+                    <div class="analytics-header-actions">
+                        <div class="dropdown">
+                            <button class="btn-export" id="analytics-export-btn">
+                                <span>📊</span>
+                                Export
+                                <span class="dropdown-arrow">▼</span>
+                            </button>
+                            <div class="dropdown-menu" id="analytics-export-menu">
+                                <button class="dropdown-item" onclick="exportAnalyticsReport()">
+                                    📈 Export Analytics Report
+                                </button>
+                                <button class="dropdown-item" onclick="exportReceiptsSummary()">
+                                    📊 Export Summary Report
+                                </button>
+                            </div>
+                        </div>
+                        <div class="date-range-selector">
+                            <button class="date-range-btn active" data-range="all">All Time</button>
+                            <button class="date-range-btn" data-range="30">Last 30 Days</button>
+                            <button class="date-range-btn" data-range="90">Last 3 Months</button>
+                            <button class="date-range-btn" data-range="365">This Year</button>
+                        </div>
                     </div>
                 </div>
                 

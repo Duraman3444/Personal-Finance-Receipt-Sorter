@@ -200,9 +200,13 @@ function switchPage(pageName) {
 
     if (pageName === 'receipts') {
         loadReceipts();
+        // Setup receipts export dropdown after a short delay to ensure DOM is ready
+        setTimeout(() => setupReceiptsExportDropdown(), 100);
     }
     if (pageName === 'categories') {
         loadCategories();
+        // Setup categories export dropdown after a short delay to ensure DOM is ready
+        setTimeout(() => setupExportDropdown(), 100);
     }
     if (pageName === 'analytics') {
         loadAnalytics();
@@ -213,52 +217,98 @@ function switchPage(pageName) {
 }
 
 async function loadReceipts() {
-    const receiptsContainer = document.querySelector('#receipts-page .welcome-card');
-    if (!receiptsContainer) return;
-    receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p>Loading...</p>';
+    const receiptsList = document.getElementById('receipts-list');
+    const receiptsSummary = document.getElementById('receipts-summary');
+    
+    if (!receiptsList) return;
+    
+    // Show loading state
+    receiptsList.innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.6);"><p>Loading receipts...</p></div>';
+    if (receiptsSummary) {
+        receiptsSummary.style.display = 'none';
+    }
 
     try {
         // Get all receipts for consistency with other pages
         const receipts = await window.firebaseClient.getReceipts(1000);
         renderReceiptsPage(receipts);
+        // Setup export dropdown after rendering is complete
+        setTimeout(() => setupReceiptsExportDropdown(), 50);
     } catch (err) {
         console.error('Failed to load receipts:', err);
-        const receiptsContainer = document.querySelector('#receipts-page .welcome-card');
-        if (receiptsContainer) {
-            receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p style="color:red;">Error loading receipts.</p>';
+        if (receiptsList) {
+            receiptsList.innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.6);"><p style="color:red;">Error loading receipts.</p></div>';
         }
     }
 }
 
 function renderReceiptsPage(receipts) {
-    const receiptsContainer = document.querySelector('#receipts-page .welcome-card');
-    if (!receiptsContainer) return;
-
+    const receiptsList = document.getElementById('receipts-list');
+    const receiptsSummary = document.getElementById('receipts-summary');
+    
     if (!receipts.length) {
-        receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p>No receipts found.</p>';
+        receiptsSummary.style.display = 'none';
+        receiptsList.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.6);">
+                <h3>📄 No Receipts Yet</h3>
+                <p>Add some receipts to your inbox folder to get started!</p>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span class="status-text">Add receipts to: ./inbox/</span>
+                </div>
+            </div>
+        `;
         return;
     }
-
+    
+    // Show summary statistics
+    receiptsSummary.style.display = 'block';
+    const totalAmount = receipts.reduce((sum, receipt) => sum + (receipt.total || 0), 0);
+    const avgAmount = totalAmount / receipts.length;
+    
+    document.getElementById('receipts-total-amount').textContent = formatCurrency(totalAmount);
+    document.getElementById('receipts-count').textContent = receipts.length;
+    document.getElementById('receipts-avg-amount').textContent = formatCurrency(avgAmount);
+    
     // Show pagination controls for large datasets
     const showLimit = 100; // Display limit for performance
     const totalReceipts = receipts.length;
     const displayReceipts = receipts.slice(0, showLimit);
-
-    let html = '<h2>Recent Receipts</h2>';
-    html += '<div style="margin-bottom: 1rem; color: rgba(255,255,255,0.7); font-size: 0.9rem;">';
-    html += `📊 Showing ${displayReceipts.length} of ${totalReceipts} receipts (synced in real-time)`;
+    
+    // Render receipts list
+    let html = '';
+    
     if (totalReceipts > showLimit) {
+        html += `<div style="margin-bottom: 1rem; color: rgba(255,255,255,0.7); font-size: 0.9rem; text-align: center;">`;
+        html += `📊 Showing ${displayReceipts.length} of ${totalReceipts} receipts (synced in real-time)`;
         html += ` - <span style="color: #fd7e14;">Displaying latest ${showLimit} for performance</span>`;
+        html += '</div>';
     }
-    html += '</div>';
     
-    html += '<table class="receipts-table" style="width:100%;border-collapse:collapse;color:white">';
-    html += '<tr><th align="left">Date</th><th align="left">Vendor</th><th align="right">Total</th><th align="left">Category</th></tr>';
-    
-    displayReceipts.forEach(r => {
-        html += `<tr style="border-top:1px solid rgba(255,255,255,0.1);"><td>${formatDate(r.date)}</td><td>${r.vendor || ''}</td><td align="right">${formatCurrency(r.total)}</td><td>${r.category || ''}</td></tr>`;
+    displayReceipts.forEach(receipt => {
+        const date = receipt.date ? formatDate(receipt.date) : 'Unknown Date';
+        const vendor = receipt.vendor || 'Unknown Vendor';
+        const amount = formatCurrency(receipt.total || 0, receipt.currency || 'USD');
+        const category = receipt.category || 'Uncategorized';
+        
+        html += `
+            <div class="receipt-item">
+                <div class="receipt-info">
+                    <div class="receipt-vendor">${vendor}</div>
+                    <div class="receipt-details">
+                        <span>${date}</span>
+                        <span>${category}</span>
+                        <span>${receipt.payment_method || 'Unknown Payment'}</span>
+                    </div>
+                </div>
+                <div class="receipt-amount">${amount}</div>
+                <div class="receipt-actions">
+                    <button class="btn-receipt-action" onclick="viewReceiptDetails('${receipt.id}')">View</button>
+                    <button class="btn-receipt-action danger" onclick="deleteReceipt('${receipt.id}')">Delete</button>
+                </div>
+            </div>
+        `;
     });
-    html += '</table>';
     
     if (totalReceipts > showLimit) {
         html += `<div style="margin-top: 1rem; text-align: center; color: rgba(255,255,255,0.6); font-size: 0.9rem;">`;
@@ -266,7 +316,7 @@ function renderReceiptsPage(receipts) {
         html += `</div>`;
     }
     
-    receiptsContainer.innerHTML = html;
+    receiptsList.innerHTML = html;
 }
 
 async function loadCategories() {
@@ -283,6 +333,8 @@ async function loadCategories() {
         ]);
         
         renderCategoriesPage(categories, receipts);
+        // Setup export dropdown after rendering is complete
+        setTimeout(() => setupExportDropdown(), 50);
     } catch (err) {
         console.error('Failed to load categories:', err);
         const catGrid = document.querySelector('#categories-grid');
@@ -840,6 +892,116 @@ function setupExportDropdown() {
     };
 }
 
+// Setup receipts export dropdown
+function setupReceiptsExportDropdown() {
+    console.log('Setting up receipts export dropdown...');
+    
+    const exportBtn = document.getElementById('receipts-export-btn');
+    const dropdown = exportBtn?.parentElement;
+    const dropdownMenu = dropdown?.querySelector('.dropdown-menu');
+    
+    if (!exportBtn || !dropdown || !dropdownMenu) {
+        console.error('Receipts export dropdown elements not found:', { 
+            exportBtn: !!exportBtn, 
+            dropdown: !!dropdown, 
+            dropdownMenu: !!dropdownMenu 
+        });
+        return;
+    }
+    
+    console.log('Receipts export dropdown elements found, setting up event listener');
+    
+    // Clear any existing click handlers
+    exportBtn.onclick = null;
+    exportBtn.removeAttribute('data-setup');
+    
+    // Add click handler
+    exportBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log('Receipts export button clicked!');
+        
+        // Toggle the dropdown
+        const isCurrentlyOpen = dropdown.classList.contains('open');
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        
+        if (!isCurrentlyOpen) {
+            dropdown.classList.add('open');
+            console.log('Receipts dropdown opened');
+        } else {
+            dropdown.classList.remove('open');
+            console.log('Receipts dropdown closed');
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+    
+    console.log('Receipts export dropdown setup complete');
+}
+
+// Setup analytics export dropdown
+function setupAnalyticsExportDropdown() {
+    console.log('Setting up analytics export dropdown...');
+    
+    const exportBtn = document.getElementById('analytics-export-btn');
+    const dropdown = exportBtn?.parentElement;
+    const dropdownMenu = dropdown?.querySelector('.dropdown-menu');
+    
+    if (!exportBtn || !dropdown || !dropdownMenu) {
+        console.error('Analytics export dropdown elements not found:', { 
+            exportBtn: !!exportBtn, 
+            dropdown: !!dropdown, 
+            dropdownMenu: !!dropdownMenu 
+        });
+        return;
+    }
+    
+    console.log('Analytics export dropdown elements found, setting up event listener');
+    
+    // Clear any existing click handlers
+    exportBtn.onclick = null;
+    exportBtn.removeAttribute('data-setup');
+    
+    // Add click handler
+    exportBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log('Analytics export button clicked!');
+        
+        // Toggle the dropdown
+        const isCurrentlyOpen = dropdown.classList.contains('open');
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        
+        if (!isCurrentlyOpen) {
+            dropdown.classList.add('open');
+            console.log('Analytics dropdown opened');
+        } else {
+            dropdown.classList.remove('open');
+            console.log('Analytics dropdown closed');
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+    
+    console.log('Analytics export dropdown setup complete');
+}
+
 // Make export functions globally accessible
 window.exportCategories = async function exportCategories(format) {
     try {
@@ -1197,6 +1359,9 @@ async function loadAnalytics(){
         
         // Initial load with all data
         renderAnalytics(receipts, receipts);
+        
+        // Setup analytics export dropdown after data is loaded
+        setTimeout(() => setupAnalyticsExportDropdown(), 100);
         
     }catch(err){
         console.error('Analytics error:', err);
@@ -2797,6 +2962,451 @@ async function deleteReceipt(receiptId) {
     }
 }
 
+// Receipt Export Functions
+window.exportReceipts = async function exportReceipts(format) {
+    try {
+        const receipts = await window.firebaseClient.getReceipts(1000); // Get up to 1000 receipts
+        
+        if (receipts.length === 0) {
+            showNotification('No receipts found to export', 'warning');
+            return;
+        }
+        
+        if (format === 'csv') {
+            exportReceiptsAsCSV(receipts);
+        } else if (format === 'json') {
+            exportReceiptsAsJSON(receipts);
+        }
+        
+        showNotification(`Successfully exported ${receipts.length} receipts as ${format.toUpperCase()}`, 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Failed to export receipts', 'error');
+    }
+};
+
+function exportReceiptsAsCSV(receipts) {
+    const headers = ['Date', 'Vendor', 'Amount', 'Currency', 'Category', 'Payment Method', 'Tax', 'Status'];
+    const csvContent = [
+        headers.join(','),
+        ...receipts.map(receipt => [
+            formatDate(receipt.date),
+            `"${receipt.vendor || 'Unknown'}"`,
+            receipt.total || 0,
+            receipt.currency || 'USD',
+            `"${receipt.category || 'Uncategorized'}"`,
+            `"${receipt.payment_method || 'Unknown'}"`,
+            receipt.tax || 0,
+            receipt.status || 'processed'
+        ].join(','))
+    ].join('\n');
+    
+    downloadFile(csvContent, `receipts-export-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+}
+
+function exportReceiptsAsJSON(receipts) {
+    const exportData = {
+        exported_at: new Date().toISOString(),
+        total_receipts: receipts.length,
+        total_amount: receipts.reduce((sum, receipt) => sum + (receipt.total || 0), 0),
+        receipts: receipts.map(receipt => ({
+            date: receipt.date,
+            vendor: receipt.vendor,
+            amount: receipt.total,
+            currency: receipt.currency || 'USD',
+            category: receipt.category,
+            payment_method: receipt.payment_method,
+            tax: receipt.tax,
+            status: receipt.status,
+            processed_at: receipt.processed_at,
+            items: receipt.items || []
+        }))
+    };
+    
+    const jsonContent = JSON.stringify(exportData, null, 2);
+    downloadFile(jsonContent, `receipts-export-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+}
+
+window.exportReceiptsSummary = async function exportReceiptsSummary() {
+    try {
+        const receipts = await window.firebaseClient.getReceipts(1000);
+        
+        if (receipts.length === 0) {
+            showNotification('No receipts found to export', 'warning');
+            return;
+        }
+        
+        // Calculate summary statistics
+        const totalAmount = receipts.reduce((sum, receipt) => sum + (receipt.total || 0), 0);
+        const categoryTotals = receipts.reduce((acc, receipt) => {
+            const category = receipt.category || 'Uncategorized';
+            acc[category] = (acc[category] || 0) + (receipt.total || 0);
+            return acc;
+        }, {});
+        
+        const monthlyTotals = receipts.reduce((acc, receipt) => {
+            const month = new Date(receipt.date).toISOString().substring(0, 7); // YYYY-MM format
+            acc[month] = (acc[month] || 0) + (receipt.total || 0);
+            return acc;
+        }, {});
+        
+        const summary = {
+            report_generated: new Date().toISOString(),
+            period: {
+                start: receipts[receipts.length - 1]?.date || 'N/A',
+                end: receipts[0]?.date || 'N/A'
+            },
+            totals: {
+                receipts: receipts.length,
+                amount: totalAmount,
+                average: totalAmount / receipts.length
+            },
+            by_category: Object.entries(categoryTotals)
+                .map(([category, amount]) => ({ category, amount }))
+                .sort((a, b) => b.amount - a.amount),
+            by_month: Object.entries(monthlyTotals)
+                .map(([month, amount]) => ({ month, amount }))
+                .sort((a, b) => b.month.localeCompare(a.month))
+        };
+        
+        const content = JSON.stringify(summary, null, 2);
+        downloadFile(content, `receipts-summary-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+        
+        showNotification('Summary report exported successfully', 'success');
+    } catch (error) {
+        console.error('Export summary error:', error);
+        showNotification('Failed to export summary report', 'error');
+    }
+};
+
+// Export comprehensive analytics report
+window.exportAnalyticsReport = async function exportAnalyticsReport() {
+    try {
+        const receipts = await window.firebaseClient.getReceipts(1000);
+        const categories = await window.firebaseClient.getCategories();
+        
+        if (receipts.length === 0) {
+            showNotification('No receipts found to export analytics report', 'warning');
+            return;
+        }
+        
+        const now = new Date();
+        const reportDate = now.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // Calculate analytics data
+        const totalAmount = receipts.reduce((sum, receipt) => sum + (receipt.total || 0), 0);
+        const avgAmount = totalAmount / receipts.length;
+        
+        // Category analysis
+        const categoryTotals = receipts.reduce((acc, receipt) => {
+            const category = receipt.category || 'Uncategorized';
+            acc[category] = (acc[category] || 0) + (receipt.total || 0);
+            return acc;
+        }, {});
+        
+        const categoryStats = Object.entries(categoryTotals)
+            .map(([category, amount]) => ({ 
+                category, 
+                amount, 
+                percentage: ((amount / totalAmount) * 100).toFixed(1),
+                count: receipts.filter(r => (r.category || 'Uncategorized') === category).length
+            }))
+            .sort((a, b) => b.amount - a.amount);
+        
+        // Monthly trends
+        const monthlyTotals = receipts.reduce((acc, receipt) => {
+            if (receipt.date) {
+                const receiptDate = new Date(receipt.date);
+                if (!isNaN(receiptDate.getTime())) {
+                    const month = receiptDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+                    acc[month] = (acc[month] || 0) + (receipt.total || 0);
+                }
+            }
+            return acc;
+        }, {});
+        
+        const monthlyStats = Object.entries(monthlyTotals)
+            .map(([month, amount]) => ({ month, amount }))
+            .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
+            .slice(-6); // Last 6 months
+        
+        // Top vendors
+        const vendorTotals = receipts.reduce((acc, receipt) => {
+            const vendor = receipt.vendor || 'Unknown Vendor';
+            acc[vendor] = (acc[vendor] || 0) + (receipt.total || 0);
+            return acc;
+        }, {});
+        
+        const topVendors = Object.entries(vendorTotals)
+            .map(([vendor, amount]) => ({ vendor, amount }))
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 10);
+        
+        // Recent activity (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recentReceipts = receipts.filter(receipt => {
+            if (!receipt.date) return false;
+            const receiptDate = new Date(receipt.date);
+            return !isNaN(receiptDate.getTime()) && receiptDate >= thirtyDaysAgo;
+        });
+        
+        const recentTotal = recentReceipts.reduce((sum, receipt) => sum + (receipt.total || 0), 0);
+        
+        // Generate HTML report
+        const htmlReport = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Analytics Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .report-container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #667eea;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header .subtitle {
+            color: #666;
+            font-size: 1.1em;
+            margin-top: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            display: block;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .section h2 {
+            color: #667eea;
+            border-left: 4px solid #667eea;
+            padding-left: 15px;
+            margin-bottom: 20px;
+        }
+        .category-item, .vendor-item, .month-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            background: #f8f9ff;
+            margin-bottom: 5px;
+            border-radius: 6px;
+        }
+        .category-item:nth-child(odd), .vendor-item:nth-child(odd), .month-item:nth-child(odd) {
+            background: #f0f2ff;
+        }
+        .item-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .item-amount {
+            font-weight: bold;
+            color: #667eea;
+        }
+        .percentage {
+            font-size: 0.9em;
+            color: #666;
+            margin-left: 10px;
+        }
+        .insights {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+        .insights h3 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        .insight-item {
+            margin-bottom: 10px;
+            padding: 8px 0;
+        }
+        .print-hidden {
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+            margin-top: 30px;
+        }
+        @media print {
+            body { background: white; padding: 0; }
+            .report-container { box-shadow: none; }
+            .print-hidden { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="header">
+            <h1>📊 Personal Finance Analytics Report</h1>
+            <div class="subtitle">Generated on ${reportDate}</div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">${formatCurrency(totalAmount)}</span>
+                <div class="stat-label">Total Spending</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">${receipts.length}</span>
+                <div class="stat-label">Total Receipts</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">${formatCurrency(avgAmount)}</span>
+                <div class="stat-label">Average per Receipt</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">${formatCurrency(recentTotal)}</span>
+                <div class="stat-label">Last 30 Days</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📈 Spending by Category</h2>
+            ${categoryStats.map(cat => `
+                <div class="category-item">
+                    <span class="item-name">${cat.category}</span>
+                    <div>
+                        <span class="item-amount">${formatCurrency(cat.amount)}</span>
+                        <span class="percentage">(${cat.percentage}% • ${cat.count} receipts)</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="section">
+            <h2>📅 Monthly Spending Trends</h2>
+            ${monthlyStats.map(month => `
+                <div class="month-item">
+                    <span class="item-name">${month.month}</span>
+                    <span class="item-amount">${formatCurrency(month.amount)}</span>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="section">
+            <h2>🏪 Top Vendors</h2>
+            ${topVendors.map((vendor, index) => `
+                <div class="vendor-item">
+                    <span class="item-name">#${index + 1} ${vendor.vendor}</span>
+                    <span class="item-amount">${formatCurrency(vendor.amount)}</span>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="section">
+            <div class="insights">
+                <h3>💡 Key Insights</h3>
+                <div class="insight-item">
+                    <strong>Spending Pattern:</strong> Your highest spending category is <strong>${categoryStats[0]?.category}</strong> at ${formatCurrency(categoryStats[0]?.amount)} (${categoryStats[0]?.percentage}% of total spending).
+                </div>
+                <div class="insight-item">
+                    <strong>Activity:</strong> You've recorded ${receipts.length} receipts with an average amount of ${formatCurrency(avgAmount)} per transaction.
+                </div>
+                <div class="insight-item">
+                    <strong>Recent Activity:</strong> In the last 30 days, you've spent ${formatCurrency(recentTotal)} across ${recentReceipts.length} transactions.
+                </div>
+                <div class="insight-item">
+                    <strong>Top Vendor:</strong> You spend the most at <strong>${topVendors[0]?.vendor}</strong> with a total of ${formatCurrency(topVendors[0]?.amount)}.
+                </div>
+            </div>
+        </div>
+        
+        <div class="print-hidden">
+            📄 This report was generated from your Personal Finance Receipt Sorter application.<br>
+            Report covers ${receipts.length} receipts from ${receipts[receipts.length - 1]?.date || 'N/A'} to ${receipts[0]?.date || 'N/A'}
+        </div>
+    </div>
+</body>
+</html>`;
+        
+        // Download as HTML file
+        const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T');
+        const filename = `analytics-report-${timestamp[0]}-${timestamp[1].split('.')[0]}.html`;
+        
+        downloadFile(htmlReport, filename, 'text/html');
+        
+        showNotification('Analytics report exported successfully! Open the HTML file to view.', 'success');
+        
+    } catch (error) {
+        console.error('Export analytics error:', error);
+        showNotification('Failed to export analytics report', 'error');
+    }
+};
+
+// Add receipt details view function
+window.viewReceiptDetails = function(receiptId) {
+    const receipts = window.firebaseClient.getCachedReceipts(1000);
+    const receipt = receipts.find(r => r.id === receiptId);
+    
+    if (receipt) {
+        const details = `
+Receipt Details:
+• Vendor: ${receipt.vendor || 'Unknown'}
+• Date: ${receipt.date || 'Unknown'}
+• Amount: ${formatCurrency(receipt.total || 0, receipt.currency || 'USD')}
+• Category: ${receipt.category || 'Uncategorized'}
+• Payment Method: ${receipt.payment_method || 'Unknown'}
+• Status: ${receipt.status || 'processed'}
+• Items: ${receipt.items?.length || 0} items
+${receipt.items?.map(item => `  - ${item.name}: ${formatCurrency(item.price || 0)} (x${item.quantity || 1})`).join('\n') || ''}
+        `;
+        alert(details);
+    }
+};
+
 // Make functions globally accessible for onclick handlers
 window.editCategory = editCategory;
 window.deleteCategory = deleteCategory;
@@ -2806,6 +3416,8 @@ window.moveReceiptToCategory = moveReceiptToCategory;
 window.removeReceiptFromCategory = removeReceiptFromCategory;
 window.addReceiptToCurrentCategory = addReceiptToCurrentCategory;
 window.deleteReceipt = deleteReceipt;
+window.exportReceipts = exportReceipts;
+window.exportReceiptsSummary = exportReceiptsSummary;
 
 // Export functions for potential use by other modules
 window.receiptSorter = {

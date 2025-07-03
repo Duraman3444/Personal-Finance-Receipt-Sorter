@@ -1,0 +1,289 @@
+{
+  "name": "Automated Email Reports",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 9 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "f8a6f0a2-1234-5678-9abc-def012345678",
+      "name": "Monthly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3002/export/receipts/csv",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "{\n  \"limit\": 1000,\n  \"period\": \"month\"\n}"
+        }
+      },
+      "id": "a1b2c3d4-5678-9012-3456-789012345678",
+      "name": "Get CSV Export",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        540,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1234-5678-9012-3456",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2c3d4e5-6789-0123-4567-890123456789",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        760,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "=Monthly Receipt Report - {{ $now.format('MMMM YYYY') }}\n\n📊 Summary:\n• Total Receipts: {{ $json.data.receipts_count }}\n• Total Amount: ${{ $json.data.summary.totals.amount.toFixed(2) }}\n• Average per Receipt: ${{ $json.data.summary.totals.average.toFixed(2) }}\n\n📈 Top Categories:\n{{ $json.data.summary.by_category.slice(0, 5).map(cat => `• ${cat.category}: $${cat.amount.toFixed(2)}`).join('\\n') }}\n\n📅 Monthly Breakdown:\n{{ $json.data.summary.by_month.slice(0, 3).map(month => `• ${month.month}: $${month.amount.toFixed(2)}`).join('\\n') }}\n\nSee attached CSV file for complete details.",
+        "options": {}
+      },
+      "id": "c3d4e5f6-7890-1234-5678-901234567890",
+      "name": "Generate Email Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        980,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "receipts@yourdomain.com",
+        "toEmail": "your-email@example.com",
+        "subject": "=Monthly Receipt Report - {{ $now.format('MMMM YYYY') }}",
+        "emailType": "text",
+        "text": "={{ $json.content }}",
+        "options": {
+          "attachments": "={{ [{\"name\": $('Get CSV Export').item.json.data.filename, \"content\": $('Get CSV Export').item.json.data.csv, \"type\": \"text/csv\"}] }}"
+        }
+      },
+      "id": "d4e5f6g7-8901-2345-6789-012345678901",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "=Failed to generate report: {{ $json.message || 'Unknown error' }}",
+        "options": {}
+      },
+      "id": "e5f6g7h8-9012-3456-7890-123456789012",
+      "name": "Error Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        980,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "receipts@yourdomain.com",
+        "toEmail": "your-email@example.com",
+        "subject": "=Receipt Report Failed - {{ $now.format('MMMM YYYY') }}",
+        "emailType": "text",
+        "text": "={{ $json.content }}"
+      },
+      "id": "f6g7h8i9-0123-4567-8901-234567890123",
+      "name": "Send Error Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3002/export/receipts/summary",
+        "options": {
+          "bodyContentType": "json",
+          "jsonBody": "{\n  \"limit\": 1000\n}"
+        }
+      },
+      "id": "g7h8i9j0-1234-5678-9012-345678901234",
+      "name": "Get Summary Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "receipts@yourdomain.com",
+        "toEmail": "your-email@example.com",
+        "subject": "=Weekly Receipt Summary - {{ $now.format('MMM DD, YYYY') }}",
+        "emailType": "text",
+        "text": "=Weekly Receipt Summary\n\n📊 Current Stats:\n• Total Receipts: {{ $json.data.receipts_count }}\n• Total Amount: ${{ $json.data.summary.totals.amount.toFixed(2) }}\n• Average per Receipt: ${{ $json.data.summary.totals.average.toFixed(2) }}\n\n📈 Top Categories:\n{{ $json.data.summary.by_category.slice(0, 5).map(cat => `• ${cat.category}: $${cat.amount.toFixed(2)}`).join('\\n') }}\n\nThis is your weekly summary. Full monthly report with CSV attachment will be sent on the 1st of each month."
+      },
+      "id": "h8i9j0k1-2345-6789-0123-456789012345",
+      "name": "Send Weekly Summary",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        540,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "i9j0k1l2-3456-7890-1234-567890123456",
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Monthly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get CSV Export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get CSV Export": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Content": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Message": {
+      "main": [
+        [
+          {
+            "node": "Send Error Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Summary Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "automated-email-reports",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+} 

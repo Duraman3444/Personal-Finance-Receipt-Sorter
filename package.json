@@ -11,10 +11,12 @@
     "test:openai": "tsc && node dist/scripts/test-parse.js",
     "test:firestore": "tsc && node dist/scripts/firestore-test.js",
     "webhook": "tsc && node dist/scripts/webhook-server.js",
+    "csv-webhook": "tsc && node dist/scripts/csv-export-webhook.js",
     "emulator": "firebase emulators:start",
     "n8n": "n8n start",
     "n8n:dev": "n8n start --tunnel",
     "workflow": "concurrently \"npm run webhook\" \"npm run n8n\"",
+    "workflow-with-csv": "concurrently \"npm run webhook\" \"npm run csv-webhook\" \"npm run n8n\"",
     "full-stack": "concurrently \"npm run emulator\" \"npm run webhook\" \"npm run n8n\" \"npm run dev\"",
     "test:integration": "tsc && node dist/scripts/test-integration.js"
   },
