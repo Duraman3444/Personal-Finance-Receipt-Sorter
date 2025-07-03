@@ -15,7 +15,7 @@
     },
     {
       "parameters": {
-        "command": "=powershell -Command \"$file = '{{ $json.path }}'; Write-Host 'Processing file:' $file; $ext = [System.IO.Path]::GetExtension($file).ToLower(); $outputFile = 'tmp/ocr_text.txt'; New-Item -ItemType Directory -Force -Path 'tmp' | Out-Null; if ($ext -eq '.pdf') { python -m ocrmypdf --force-ocr --sidecar '$outputFile' '$file' 'tmp/temp_output.pdf' } elseif ($ext -eq '.txt') { Copy-Item '$file' '$outputFile' -Force } else { & 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe' '$file' 'tmp/ocr_text' -l eng }; if (Test-Path '$outputFile') { Get-Content '$outputFile' -Raw } else { 'OCR processing failed for: ' + $file }\""
+        "command": "=powershell -Command \"$file = '{{ $json.path }}'; Write-Host 'Processing file:' $file; $ext = [System.IO.Path]::GetExtension($file).ToLower(); $outputFile = 'tmp/ocr_text.txt'; New-Item -ItemType Directory -Force -Path 'tmp' | Out-Null; if ($ext -eq '.pdf') { python -m ocrmypdf --force-ocr --sidecar $outputFile $file 'tmp/temp_output.pdf' } elseif ($ext -eq '.txt') { Copy-Item $file $outputFile -Force } else { & 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe' $file 'tmp/ocr_text' -l eng }; if (Test-Path $outputFile) { Get-Content $outputFile -Raw } else { 'OCR processing failed for: ' + $file }\""
       },
       "id": "c2c8b7a5-1234-4567-8901-123456789012",
       "name": "Execute Command",
@@ -150,7 +150,7 @@
         },
         "sendBody": true,
         "contentType": "json",
-        "body": "={{ JSON.stringify(Object.assign({}, $json.receipt_data, {source_file: $json.source_file, ocr_text: $json.ocr_text})) }}",
+        "body": "={{ Object.assign({}, $json.receipt_data, { source_file: $json.source_file, ocr_text: $json.ocr_text }) }}",
         "options": {
           "response": {
             "response": {

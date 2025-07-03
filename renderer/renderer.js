@@ -7,6 +7,9 @@ const appVersionSpan = document.getElementById('app-version');
 // Global preferences cache
 let userPrefs = { defaultCurrency: 'USD', showNotifications: true };
 
+// Global AI budget suggestions cache (category -> suggested monthly budget)
+window.budgetSuggestions = {};
+
 // Status indicators
 const firebaseStatus = document.getElementById('firebase-status');
 const firebaseText = document.getElementById('firebase-text');
@@ -69,6 +72,12 @@ function setupEventListeners() {
             showNotification('Failed to open inbox folder. Make sure the inbox directory exists in your project folder.', 'error');
         }
     });
+
+    // AI Budget suggestion button
+    const suggestBudgetBtn = document.getElementById('suggest-budget-btn');
+    if (suggestBudgetBtn) {
+        suggestBudgetBtn.addEventListener('click', generateBudgetSuggestions);
+    }
 }
 
 function setupRealTimeSync() {
@@ -465,6 +474,15 @@ function renderCategoriesPage(categories, receipts = null) {
                 </button>
             </div>`;
         
+        const suggestion = !hasBudget && window.budgetSuggestions[category.name];
+        const suggestionSection = suggestion ? `
+            <div class="budget-section suggested">
+                <div class="budget-info">
+                    <span class="budget-label">Suggested Budget</span>
+                    <span class="budget-amount">${formatCurrency(suggestion)}</span>
+                </div>
+            </div>` : '';
+        
         const budgetSection = hasBudget ? `
             <div class="budget-section">
                 <div class="budget-info">
@@ -508,7 +526,7 @@ function renderCategoriesPage(categories, receipts = null) {
                 <div class="category-progress">
                     <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
                 </div>
-                ${budgetSection}
+                ${suggestionSection}${budgetSection}
                 ${category.subcategories && category.subcategories.length > 0 ? `
                     <div class="subcategories-section">
                         <div class="subcategories-label">Subcategories</div>
@@ -670,6 +688,15 @@ function setupCategorySearchAndFilter(allCategories, categoryStats, currentMonth
                     </button>
                 </div>`;
             
+            const suggestion = !hasBudget && window.budgetSuggestions[category.name];
+            const suggestionSection = suggestion ? `
+                <div class="budget-section suggested">
+                    <div class="budget-info">
+                        <span class="budget-label">Suggested Budget</span>
+                        <span class="budget-amount">${formatCurrency(suggestion)}</span>
+                    </div>
+                </div>` : '';
+            
             const budgetSection = hasBudget ? `
                 <div class="budget-section">
                     <div class="budget-info">
@@ -713,7 +740,7 @@ function setupCategorySearchAndFilter(allCategories, categoryStats, currentMonth
                     <div class="category-progress">
                         <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
                     </div>
-                    ${budgetSection}
+                    ${suggestionSection}${budgetSection}
                     ${category.subcategories && category.subcategories.length > 0 ? `
                         <div class="subcategories-section">
                             <div class="subcategories-label">Subcategories</div>
@@ -3432,3 +3459,63 @@ window.receiptSorter = {
     moveReceiptToCategory,
     deleteReceipt
 }; 
+
+// Append new function before end
+
+async function generateBudgetSuggestions() {
+    try {
+        // Gather last 3-month totals per category
+        const receipts = window.firebaseClient.getCachedReceipts(1000);
+        if (!receipts || receipts.length === 0) {
+            showNotification('No receipts available to analyse', 'info');
+            return;
+        }
+        const now = new Date();
+        const months = new Set();
+        for (let i = 0; i < 3; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.add(d.toISOString().slice(0, 7)); // YYYY-MM
+        }
+        const totals = {};
+        receipts.forEach(r => {
+            const d = parseReceiptDate(r.date);
+            if (!d) return;
+            const month = d.toISOString().slice(0, 7);
+            if (!months.has(month)) return;
+            const cat = r.category || 'Uncategorized';
+            totals[cat] = (totals[cat] || 0) + (r.total || 0);
+        });
+        const payload = Object.entries(totals).map(([category, lastThreeMonthTotal]) => ({ category, lastThreeMonthTotal }));
+        if (payload.length === 0) {
+            showNotification('Not enough recent data for suggestions', 'warning');
+            return;
+        }
+        // Call backend
+        showNotification('Generating budget suggestions…', 'info');
+        const resp = await fetch('http://localhost:3001/suggest-budget', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ categories: payload })
+        });
+        if (!resp.ok) {
+            showNotification(`Server error ${resp.status}`, 'error');
+            return;
+        }
+        const res = await resp.json();
+        if (!res.success) {
+            throw new Error(res.error || 'Request failed');
+        }
+        // Cache suggestions
+        window.budgetSuggestions = (res.suggestions || []).reduce((acc, s) => {
+            acc[s.category] = s.suggested_budget;
+            return acc;
+        }, {});
+        showNotification('Budget suggestions ready', 'success');
+        // Re-render categories to show suggestions
+        const categories = window.firebaseClient.getCachedCategories();
+        renderCategoriesPage(categories);
+    } catch (err) {
+        console.error('Budget suggestion error', err);
+        showNotification('Failed to generate budget suggestions', 'error');
+    }
+}

@@ -18,7 +18,9 @@
     "workflow": "concurrently \"npm run webhook\" \"npm run n8n\"",
     "workflow-with-csv": "concurrently \"npm run webhook\" \"npm run csv-webhook\" \"npm run n8n\"",
     "full-stack": "concurrently \"npm run emulator\" \"npm run webhook\" \"npm run n8n\" \"npm run dev\"",
-    "test:integration": "tsc && node dist/scripts/test-integration.js"
+    "setup-n8n": "tsc && node dist/scripts/setup-n8n-workflow.js",
+    "test:integration": "tsc && node dist/scripts/test-integration.js",
+    "count:receipts": "tsc && node dist/scripts/count-receipts.js"
   },
   "repository": {
     "type": "git",
@@ -55,6 +57,7 @@
     "express": "^4.21.2",
     "firebase": "^11.1.0",
     "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
     "openai": "^4.77.3"
   }
 }

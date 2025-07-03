@@ -13,10 +13,22 @@ app.use(express.json());
 const firebaseService = new FirebaseService();
 
 // Utility function to format date
-function formatDate(dateInput: string | Date): string {
+function formatDate(dateInput: any): string {
     if (!dateInput) return 'Unknown Date';
     
-    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    let date: Date;
+    
+    // Handle Firestore Timestamp objects
+    if (dateInput && typeof dateInput === 'object' && dateInput.toDate) {
+        date = dateInput.toDate();
+    } else if (typeof dateInput === 'string') {
+        date = new Date(dateInput);
+    } else if (dateInput instanceof Date) {
+        date = dateInput;
+    } else {
+        return 'Invalid Date';
+    }
+    
     if (isNaN(date.getTime())) return 'Invalid Date';
     
     return date.toLocaleDateString('en-US', {
@@ -65,7 +77,19 @@ function generateSummaryReport(receipts: any[]): any {
     
     const monthlyTotals = receipts.reduce((acc, receipt) => {
         if (receipt.date) {
-            const receiptDate = new Date(receipt.date);
+            let receiptDate: Date;
+            
+            // Handle Firestore Timestamp objects
+            if (receipt.date && typeof receipt.date === 'object' && receipt.date.toDate) {
+                receiptDate = receipt.date.toDate();
+            } else if (typeof receipt.date === 'string') {
+                receiptDate = new Date(receipt.date);
+            } else if (receipt.date instanceof Date) {
+                receiptDate = receipt.date;
+            } else {
+                return acc;
+            }
+            
             if (!isNaN(receiptDate.getTime())) {
                 const month = receiptDate.toISOString().substring(0, 7); // YYYY-MM format
                 acc[month] = (acc[month] || 0) + (receipt.total || 0);
@@ -76,9 +100,21 @@ function generateSummaryReport(receipts: any[]): any {
     
     // Find valid date range
     const validDates = receipts
-        .map(r => r.date)
-        .filter(date => date && !isNaN(new Date(date).getTime()))
-        .sort();
+        .map(r => {
+            if (!r.date) return null;
+            
+            // Handle Firestore Timestamp objects
+            if (r.date && typeof r.date === 'object' && r.date.toDate) {
+                return r.date.toDate();
+            } else if (typeof r.date === 'string') {
+                return new Date(r.date);
+            } else if (r.date instanceof Date) {
+                return r.date;
+            }
+            return null;
+        })
+        .filter(date => date && !isNaN(date.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
     
     return {
         report_generated: new Date().toISOString(),
@@ -142,7 +178,20 @@ app.post('/export/receipts/csv', async (req, res) => {
             
             filteredReceipts = receipts.filter(receipt => {
                 if (!receipt.date) return false;
-                const receiptDate = new Date(receipt.date);
+                
+                let receiptDate: Date;
+                
+                // Handle Firestore Timestamp objects
+                if (receipt.date && typeof receipt.date === 'object' && (receipt.date as any).toDate) {
+                    receiptDate = (receipt.date as any).toDate();
+                } else if (typeof receipt.date === 'string') {
+                    receiptDate = new Date(receipt.date);
+                } else if (receipt.date && (receipt.date as any) instanceof Date) {
+                    receiptDate = receipt.date as Date;
+                } else {
+                    return false;
+                }
+                
                 return !isNaN(receiptDate.getTime()) && receiptDate >= periodStart;
             });
         }

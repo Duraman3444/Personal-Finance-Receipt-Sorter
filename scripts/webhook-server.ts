@@ -3,6 +3,7 @@ import cors from 'cors';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc } from 'firebase/firestore';
 import * as dotenv from 'dotenv';
+import OpenAI from 'openai';
 
 // Load environment variables
 dotenv.config();
@@ -31,6 +32,14 @@ console.log('🔥 Connected to Firebase for webhook server');
 const server = express();
 server.use(cors());
 server.use(express.json({ limit: '10mb' })); // Allow larger payloads for OCR text
+
+// Conditionally instantiate OpenAI
+let openai: OpenAI | null = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+} else {
+  console.log('ℹ️  OPENAI_API_KEY not set; /suggest-budget will return heuristic suggestions.');
+}
 
 // Main webhook endpoint - n8n calls this to store receipts
 server.post('/store-receipt', async (req, res) => {
@@ -126,6 +135,49 @@ server.post('/test', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Test failed' });
+  }
+});
+
+// Add AI budget suggestion endpoint
+server.post('/suggest-budget', async (req, res) => {
+  try {
+    const { categories } = req.body;
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ success: false, error: 'categories array required' });
+    }
+
+    // Fallback if OpenAI key missing
+    if (!process.env.OPENAI_API_KEY) {
+      const suggestions = categories.map(c => ({
+        category: c.category,
+        suggested_budget: Math.round((c.lastThreeMonthTotal || 0) / 3)
+      }));
+      return res.json({ success: true, suggestions, fallback: true });
+    }
+
+    // Build prompt for GPT-4o-mini
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'You are a personal-finance assistant. For each category with its lastThreeMonthTotal, propose a reasonable monthly budget (whole dollars). Return ONLY JSON array like [{"category":"Dining","suggested_budget":120}] without additional keys.'
+      },
+      { role: 'user', content: JSON.stringify(categories) }
+    ];
+
+    const completion = await openai!.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: messages as any
+    });
+
+    const raw = completion.choices?.[0]?.message?.content?.trim() || '[]';
+    let suggestions = [];
+    try { suggestions = JSON.parse(raw); } catch (_) { suggestions = []; }
+    res.json({ success: true, suggestions });
+  } catch (error) {
+    console.error('❌ Budget suggestion error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
