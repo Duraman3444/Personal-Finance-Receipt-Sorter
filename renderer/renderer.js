@@ -19,6 +19,7 @@ const openaiText = document.getElementById('openai-text');
 document.addEventListener('DOMContentLoaded', async () => {
     await initializeApp();
     setupEventListeners();
+    setupRealTimeSync();
     startStatusChecks();
 });
 
@@ -70,6 +71,110 @@ function setupEventListeners() {
     });
 }
 
+function setupRealTimeSync() {
+    // Real-time sync event listeners
+    window.addEventListener('receipts-updated', (event) => {
+        console.log('📡 Receipts updated:', event.detail.receipts.length, 'items');
+        
+        // Update receipts page if currently visible
+        const receiptsPage = document.getElementById('receipts-page');
+        if (receiptsPage && receiptsPage.style.display !== 'none') {
+            renderReceiptsPage(event.detail.receipts);
+        }
+        
+        // Update analytics if currently visible
+        const analyticsPage = document.getElementById('analytics-page');
+        if (analyticsPage && analyticsPage.style.display !== 'none') {
+            // Update global data and re-render
+            window.currentAnalyticsData = event.detail.receipts;
+            const activeRange = document.querySelector('.date-range-btn.active');
+            if (activeRange) {
+                const range = activeRange.dataset.range;
+                const filteredReceipts = filterReceiptsByDateRange(event.detail.receipts, range);
+                renderAnalytics(filteredReceipts, event.detail.receipts);
+            } else {
+                renderAnalytics(event.detail.receipts, event.detail.receipts);
+            }
+        }
+        
+        // Update categories page if currently visible (receipts affect category stats)
+        const categoriesPage = document.getElementById('categories-page');
+        if (categoriesPage && categoriesPage.style.display !== 'none') {
+            const categories = window.firebaseClient.getCachedCategories();
+            renderCategoriesPage(categories, event.detail.receipts);
+        }
+        
+        // Update category details if open
+        if (window.currentCategoryDetails) {
+            loadCategoryDetails();
+        }
+        
+        // Update Firebase status to show correct counts
+        setTimeout(() => {
+            checkFirebaseStatus();
+        }, 100);
+    });
+
+    window.addEventListener('categories-updated', (event) => {
+        console.log('📡 Categories updated:', event.detail.categories.length, 'items');
+        
+        // Update categories page if currently visible
+        const categoriesPage = document.getElementById('categories-page');
+        if (categoriesPage && categoriesPage.style.display !== 'none') {
+            const receipts = window.firebaseClient.getCachedReceipts(1000);
+            renderCategoriesPage(event.detail.categories, receipts);
+        }
+        
+        // Update analytics if currently visible (categories affect analytics)
+        const analyticsPage = document.getElementById('analytics-page');
+        if (analyticsPage && analyticsPage.style.display !== 'none') {
+            // Use cached data to avoid re-fetching
+            const receipts = window.firebaseClient.getCachedReceipts(1000);
+            window.currentAnalyticsData = receipts;
+            const activeRange = document.querySelector('.date-range-btn.active');
+            if (activeRange) {
+                const range = activeRange.dataset.range;
+                const filteredReceipts = filterReceiptsByDateRange(receipts, range);
+                renderAnalytics(filteredReceipts, receipts);
+            } else {
+                renderAnalytics(receipts, receipts);
+            }
+        }
+        
+        // Update Firebase status to show correct counts
+        setTimeout(() => {
+            checkFirebaseStatus();
+        }, 100);
+    });
+
+    // Start real-time sync when the app initializes
+    setTimeout(async () => {
+        try {
+            if (window.firebaseClient) {
+                console.log('🔄 Starting real-time sync...');
+                await window.firebaseClient.startReceiptsSync();
+                await window.firebaseClient.startCategoriesSync();
+                showNotification('Real-time sync enabled - data will stay synchronized across all tabs', 'success');
+                
+                // Add sync status indicator
+                updateSyncStatusIndicator(true);
+            }
+        } catch (error) {
+            console.error('Failed to start real-time sync:', error);
+            showNotification('Failed to enable real-time sync. Data may not be synchronized.', 'warning');
+            updateSyncStatusIndicator(false);
+        }
+    }, 1000); // Small delay to ensure Firebase client is ready
+    
+    // Cleanup sync listeners when the app closes
+    window.addEventListener('beforeunload', () => {
+        if (window.firebaseClient) {
+            console.log('🔄 Stopping real-time sync...');
+            window.firebaseClient.stopAllSync();
+        }
+    });
+}
+
 function switchPage(pageName) {
     // Hide all pages
     pages.forEach(page => {
@@ -113,23 +218,55 @@ async function loadReceipts() {
     receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p>Loading...</p>';
 
     try {
-        const receipts = await window.firebaseClient.getReceipts(50);
-        if (!receipts.length) {
-            receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p>No receipts found.</p>';
-            return;
-        }
-
-        let html = '<h2>Recent Receipts</h2><table class="receipts-table" style="width:100%;border-collapse:collapse;color:white">';
-        html += '<tr><th align="left">Date</th><th align="left">Vendor</th><th align="right">Total</th><th align="left">Category</th></tr>';
-        receipts.forEach(r => {
-            html += `<tr style="border-top:1px solid rgba(255,255,255,0.1);"><td>${formatDate(r.date)}</td><td>${r.vendor || ''}</td><td align="right">${formatCurrency(r.total)}</td><td>${r.category || ''}</td></tr>`;
-        });
-        html += '</table>';
-        receiptsContainer.innerHTML = html;
+        // Get all receipts for consistency with other pages
+        const receipts = await window.firebaseClient.getReceipts(1000);
+        renderReceiptsPage(receipts);
     } catch (err) {
         console.error('Failed to load receipts:', err);
-        receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p style="color:red;">Error loading receipts.</p>';
+        const receiptsContainer = document.querySelector('#receipts-page .welcome-card');
+        if (receiptsContainer) {
+            receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p style="color:red;">Error loading receipts.</p>';
+        }
     }
+}
+
+function renderReceiptsPage(receipts) {
+    const receiptsContainer = document.querySelector('#receipts-page .welcome-card');
+    if (!receiptsContainer) return;
+
+    if (!receipts.length) {
+        receiptsContainer.innerHTML = '<h2>Recent Receipts</h2><p>No receipts found.</p>';
+        return;
+    }
+
+    // Show pagination controls for large datasets
+    const showLimit = 100; // Display limit for performance
+    const totalReceipts = receipts.length;
+    const displayReceipts = receipts.slice(0, showLimit);
+
+    let html = '<h2>Recent Receipts</h2>';
+    html += '<div style="margin-bottom: 1rem; color: rgba(255,255,255,0.7); font-size: 0.9rem;">';
+    html += `📊 Showing ${displayReceipts.length} of ${totalReceipts} receipts (synced in real-time)`;
+    if (totalReceipts > showLimit) {
+        html += ` - <span style="color: #fd7e14;">Displaying latest ${showLimit} for performance</span>`;
+    }
+    html += '</div>';
+    
+    html += '<table class="receipts-table" style="width:100%;border-collapse:collapse;color:white">';
+    html += '<tr><th align="left">Date</th><th align="left">Vendor</th><th align="right">Total</th><th align="left">Category</th></tr>';
+    
+    displayReceipts.forEach(r => {
+        html += `<tr style="border-top:1px solid rgba(255,255,255,0.1);"><td>${formatDate(r.date)}</td><td>${r.vendor || ''}</td><td align="right">${formatCurrency(r.total)}</td><td>${r.category || ''}</td></tr>`;
+    });
+    html += '</table>';
+    
+    if (totalReceipts > showLimit) {
+        html += `<div style="margin-top: 1rem; text-align: center; color: rgba(255,255,255,0.6); font-size: 0.9rem;">`;
+        html += `${totalReceipts - showLimit} more receipts available. Check Analytics page for complete data.`;
+        html += `</div>`;
+    }
+    
+    receiptsContainer.innerHTML = html;
 }
 
 async function loadCategories() {
@@ -145,196 +282,205 @@ async function loadCategories() {
             window.firebaseClient.getReceipts(1000)
         ]);
         
-        // Calculate spending totals and counts per category
-        const categoryStats = {};
-        const currentMonthStats = {};
-        let maxSpending = 0;
-        
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-        
-        receipts.forEach(r => {
-            const cat = r.category || 'Uncategorized';
-            if (!categoryStats[cat]) {
-                categoryStats[cat] = { total: 0, count: 0 };
-                currentMonthStats[cat] = { total: 0, count: 0 };
-            }
-            
-            // All-time stats
-            categoryStats[cat].total += (r.total || 0);
-            categoryStats[cat].count += 1;
-            maxSpending = Math.max(maxSpending, categoryStats[cat].total);
-            
-            // Current month stats for budget tracking
-            const receiptDate = parseReceiptDate(r.date);
-            if (receiptDate && 
-                receiptDate.getMonth() === currentMonth && 
-                receiptDate.getFullYear() === currentYear) {
-                currentMonthStats[cat].total += (r.total || 0);
-                currentMonthStats[cat].count += 1;
-            }
-        });
-        
-        // Create a comprehensive list of all categories (from database + from receipts)
-        const allCategories = [...categories];
-        const existingCategoryNames = new Set(categories.map(c => c.name));
-        
-        // Add categories found in receipts that don't exist in the database
-        Object.keys(categoryStats).forEach(categoryName => {
-            if (!existingCategoryNames.has(categoryName)) {
-                allCategories.push({
-                    id: `receipt-${categoryName.toLowerCase().replace(/\s+/g, '-')}`,
-                    name: categoryName,
-                    color: getColorForCategory(categoryName), // Smart color based on category name
-                    icon: getEmojiForCategory(categoryName), // Smart emoji based on category name
-                    isFromReceipts: true // Flag to identify these categories
-                });
-            }
-        });
-        
-        if (allCategories.length === 0) {
-            catGrid.innerHTML = `
-                <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
-                    <h3 style="color: rgba(255,255,255,0.8); margin-bottom: 1rem;">No Categories Yet</h3>
-                    <p style="color: rgba(255,255,255,0.6); margin-bottom: 2rem;">Create your first spending category to get started!</p>
-                    <button class="btn-add-category" onclick="openCategoryModal()">
-                        <span>➕</span>
-                        Add Your First Category
-                    </button>
-                </div>
-            `;
-            return;
+        renderCategoriesPage(categories, receipts);
+    } catch (err) {
+        console.error('Failed to load categories:', err);
+        const catGrid = document.querySelector('#categories-grid');
+        if (catGrid) {
+            catGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: rgba(255,255,255,0.6);"><p style="color:red;">Error loading categories.</p></div>';
+        }
+    }
+}
+
+function renderCategoriesPage(categories, receipts = null) {
+    const catGrid = document.querySelector('#categories-grid');
+    if (!catGrid) return;
+    
+    // Use cached receipts if not provided
+    if (!receipts) {
+        receipts = window.firebaseClient.getCachedReceipts(1000);
+    }
+    
+    // Calculate spending totals and counts per category
+    const categoryStats = {};
+    const currentMonthStats = {};
+    let maxSpending = 0;
+    
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    receipts.forEach(r => {
+        const cat = r.category || 'Uncategorized';
+        if (!categoryStats[cat]) {
+            categoryStats[cat] = { total: 0, count: 0 };
+            currentMonthStats[cat] = { total: 0, count: 0 };
         }
         
-        // Sort categories: database categories first, then receipt-only categories
-        allCategories.sort((a, b) => {
-            if (a.isFromReceipts && !b.isFromReceipts) return 1;
-            if (!a.isFromReceipts && b.isFromReceipts) return -1;
-            return a.name.localeCompare(b.name);
-        });
+        // All-time stats
+        categoryStats[cat].total += (r.total || 0);
+        categoryStats[cat].count += 1;
+        maxSpending = Math.max(maxSpending, categoryStats[cat].total);
         
-        // Generate category cards
-        let html = '';
-        allCategories.forEach(category => {
-            const stats = categoryStats[category.name] || { total: 0, count: 0 };
-            const monthlyStats = currentMonthStats[category.name] || { total: 0, count: 0 };
-            const progressPercent = maxSpending > 0 ? (stats.total / maxSpending) * 100 : 0;
-            
-            // Budget calculations
-            const hasBudget = category.monthlyBudget && category.monthlyBudget > 0;
-            let budgetProgress = 0;
-            let budgetStatus = 'safe';
-            let budgetRemaining = 0;
-            
-            if (hasBudget) {
-                budgetProgress = Math.min((monthlyStats.total / category.monthlyBudget) * 100, 100);
-                budgetRemaining = category.monthlyBudget - monthlyStats.total;
-                
-                if (budgetProgress >= 100) {
-                    budgetStatus = 'danger';
-                } else if (budgetProgress >= 80) {
-                    budgetStatus = 'warning';
-                }
-            }
-            
-            // Show actions for all categories with pencil button
-            const categoryActions = category.isFromReceipts ? 
-                `<div class="category-actions">
-                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
-                        ✏️
-                    </button>
-                    <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
-                        ➕
-                    </button>
-                </div>` :
-                `<div class="category-actions">
-                    <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
-                        ✏️
-                    </button>
-                    <button class="btn-category-action" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete Category">
-                        🗑️
-                    </button>
-                </div>`;
-            
-            const budgetSection = hasBudget ? `
-                <div class="budget-section">
-                    <div class="budget-info">
-                        <span class="budget-label">Monthly Budget</span>
-                        <span class="budget-amount">${formatCurrency(category.monthlyBudget)}</span>
-                    </div>
-                    <div class="budget-progress">
-                        <div class="budget-progress-bar ${budgetStatus}" style="width: ${budgetProgress}%"></div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span class="budget-status ${budgetStatus}">
-                            ${budgetProgress >= 100 ? 'Over Budget!' : 
-                              budgetProgress >= 80 ? 'Near Limit' : 'On Track'}
-                        </span>
-                        <span class="budget-remaining">
-                            ${budgetRemaining >= 0 ? 
-                                `${formatCurrency(budgetRemaining)} left` : 
-                                `${formatCurrency(Math.abs(budgetRemaining))} over`}
-                        </span>
-                    </div>
-                    <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 0.25rem;">
-                        Spent: ${formatCurrency(monthlyStats.total)} this month
-                    </div>
-                </div>` : '';
-            
-            html += `
-                <div class="category-card ${category.isFromReceipts ? 'receipt-only-category' : ''}" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
-                    <div class="category-header">
-                        <div class="category-icon-name">
-                            <div class="category-icon" style="background-color: ${category.color}">
-                                ${category.icon}
-                            </div>
-                            <h3 class="category-name">${category.name}${category.isFromReceipts ? ' (Auto)' : ''}</h3>
-                        </div>
-                        ${categoryActions}
-                    </div>
-                    <div class="category-stats">
-                        <div class="category-amount">${formatCurrency(stats.total)}</div>
-                        <div class="category-count">${stats.count} receipt${stats.count !== 1 ? 's' : ''}</div>
-                    </div>
-                    <div class="category-progress">
-                        <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
-                    </div>
-                    ${budgetSection}
-                    ${category.subcategories && category.subcategories.length > 0 ? `
-                        <div class="subcategories-section">
-                            <div class="subcategories-label">Subcategories</div>
-                            <div class="subcategories-list">
-                                ${category.subcategories.map(sub => `<span class="subcategory-tag">${sub}</span>`).join('')}
-                            </div>
-                        </div>` : ''}
-                </div>
-            `;
-        });
-        
-        catGrid.innerHTML = html;
-        
-        // Set up modal if not already done
-        setupCategoryModal();
-        
-        // Set up budget overview
-        setupBudgetOverview(allCategories, currentMonthStats);
-        
-        // Set up search and filter functionality
-        setupCategorySearchAndFilter(allCategories, categoryStats, currentMonthStats, maxSpending);
-        
-        // Set up export functionality
-        setupExportDropdown();
-        
-    } catch(err) {
-        console.error('Error loading categories:', err);
+        // Current month stats for budget tracking
+        const receiptDate = parseReceiptDate(r.date);
+        if (receiptDate && 
+            receiptDate.getMonth() === currentMonth && 
+            receiptDate.getFullYear() === currentYear) {
+            currentMonthStats[cat].total += (r.total || 0);
+            currentMonthStats[cat].count += 1;
+        }
+    });
+    
+    // Create a comprehensive list of all categories (from database + from receipts)
+    const allCategories = [...categories];
+    const existingCategoryNames = new Set(categories.map(c => c.name));
+    
+    // Add categories found in receipts that don't exist in the database
+    Object.keys(categoryStats).forEach(categoryName => {
+        if (!existingCategoryNames.has(categoryName)) {
+            allCategories.push({
+                id: `receipt-${categoryName.toLowerCase().replace(/\s+/g, '-')}`,
+                name: categoryName,
+                color: getColorForCategory(categoryName), // Smart color based on category name
+                icon: getEmojiForCategory(categoryName), // Smart emoji based on category name
+                isFromReceipts: true // Flag to identify these categories
+            });
+        }
+    });
+    
+    if (allCategories.length === 0) {
         catGrid.innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
-                <h3 style="color: #fa5252;">Error Loading Categories</h3>
-                <p style="color: rgba(255,255,255,0.6);">Unable to load categories. Please try again.</p>
+                <h3 style="color: rgba(255,255,255,0.8); margin-bottom: 1rem;">No Categories Yet</h3>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 2rem;">Create your first spending category to get started!</p>
+                <button class="btn-add-category" onclick="openCategoryModal()">
+                    <span>➕</span>
+                    Add Your First Category
+                </button>
             </div>
         `;
+        return;
     }
+    
+    // Sort categories: database categories first, then receipt-only categories
+    allCategories.sort((a, b) => {
+        if (a.isFromReceipts && !b.isFromReceipts) return 1;
+        if (!a.isFromReceipts && b.isFromReceipts) return -1;
+        return a.name.localeCompare(b.name);
+    });
+    
+    // Generate category cards
+    let html = '';
+    allCategories.forEach(category => {
+        const stats = categoryStats[category.name] || { total: 0, count: 0 };
+        const monthlyStats = currentMonthStats[category.name] || { total: 0, count: 0 };
+        const progressPercent = maxSpending > 0 ? (stats.total / maxSpending) * 100 : 0;
+        
+        // Budget calculations
+        const hasBudget = category.monthlyBudget && category.monthlyBudget > 0;
+        let budgetProgress = 0;
+        let budgetStatus = 'safe';
+        let budgetRemaining = 0;
+        
+        if (hasBudget) {
+            budgetProgress = Math.min((monthlyStats.total / category.monthlyBudget) * 100, 100);
+            budgetRemaining = category.monthlyBudget - monthlyStats.total;
+            
+            if (budgetProgress >= 100) {
+                budgetStatus = 'danger';
+            } else if (budgetProgress >= 80) {
+                budgetStatus = 'warning';
+            }
+        }
+        
+        // Show actions for all categories with pencil button
+        const categoryActions = category.isFromReceipts ? 
+            `<div class="category-actions">
+                <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                    ✏️
+                </button>
+                <button class="btn-category-action" onclick="event.stopPropagation(); convertToManagedCategory('${category.name}')" title="Convert to Managed Category">
+                    ➕
+                </button>
+            </div>` :
+            `<div class="category-actions">
+                <button class="btn-category-action" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit Category">
+                    ✏️
+                </button>
+                <button class="btn-category-action" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete Category">
+                    🗑️
+                </button>
+            </div>`;
+        
+        const budgetSection = hasBudget ? `
+            <div class="budget-section">
+                <div class="budget-info">
+                    <span class="budget-label">Monthly Budget</span>
+                    <span class="budget-amount">${formatCurrency(category.monthlyBudget)}</span>
+                </div>
+                <div class="budget-progress">
+                    <div class="budget-progress-bar ${budgetStatus}" style="width: ${budgetProgress}%"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="budget-status ${budgetStatus}">
+                        ${budgetProgress >= 100 ? 'Over Budget!' : 
+                          budgetProgress >= 80 ? 'Near Limit' : 'On Track'}
+                    </span>
+                    <span class="budget-remaining">
+                        ${budgetRemaining >= 0 ? 
+                            `${formatCurrency(budgetRemaining)} left` : 
+                            `${formatCurrency(Math.abs(budgetRemaining))} over`}
+                    </span>
+                </div>
+                <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 0.25rem;">
+                    Spent: ${formatCurrency(monthlyStats.total)} this month
+                </div>
+            </div>` : '';
+        
+        html += `
+            <div class="category-card ${category.isFromReceipts ? 'receipt-only-category' : ''}" data-category-id="${category.id}" data-category-name="${category.name}" data-category-color="${category.color}" data-category-icon="${category.icon}" onclick="openCategoryDetails('${category.id}')">
+                <div class="category-header">
+                    <div class="category-icon-name">
+                        <div class="category-icon" style="background-color: ${category.color}">
+                            ${category.icon}
+                        </div>
+                        <h3 class="category-name">${category.name}${category.isFromReceipts ? ' (Auto)' : ''}</h3>
+                    </div>
+                    ${categoryActions}
+                </div>
+                <div class="category-stats">
+                    <div class="category-amount">${formatCurrency(stats.total)}</div>
+                    <div class="category-count">${stats.count} receipt${stats.count !== 1 ? 's' : ''}</div>
+                </div>
+                <div class="category-progress">
+                    <div class="category-progress-bar" style="width: ${progressPercent}%"></div>
+                </div>
+                ${budgetSection}
+                ${category.subcategories && category.subcategories.length > 0 ? `
+                    <div class="subcategories-section">
+                        <div class="subcategories-label">Subcategories</div>
+                        <div class="subcategories-list">
+                            ${category.subcategories.map(sub => `<span class="subcategory-tag">${sub}</span>`).join('')}
+                        </div>
+                    </div>` : ''}
+            </div>
+        `;
+    });
+    
+    catGrid.innerHTML = html;
+    
+    // Set up modal if not already done
+    setupCategoryModal();
+    
+    // Set up budget overview
+    setupBudgetOverview(allCategories, currentMonthStats);
+    
+    // Set up search and filter functionality
+    setupCategorySearchAndFilter(allCategories, categoryStats, currentMonthStats, maxSpending);
+    
+    // Set up export functionality
+    setupExportDropdown();
 }
 
 // Search and filter functionality for categories
@@ -1603,10 +1749,28 @@ async function checkFirebaseStatus() {
             mainProcessConnected = mainStatus.success && mainStatus.connected;
         }
         
+        // Check if real-time sync is active
+        const syncStatus = window.firebaseClient ? window.firebaseClient.getStatus() : null;
+        const hasSyncActive = syncStatus && (syncStatus.syncStatus.receipts || syncStatus.syncStatus.categories);
+        
         // Update UI based on status
         if (clientConnected || mainProcessConnected) {
             firebaseStatus.classList.add('connected');
-            if (window.location.protocol === 'file:') {
+            if (hasSyncActive) {
+                // Get total category count including auto-generated ones
+                const allReceipts = window.firebaseClient.getCachedReceipts(1000);
+                const managedCategories = window.firebaseClient.getCachedCategories();
+                const autoCategories = new Set();
+                
+                allReceipts.forEach(r => {
+                    if (r.category && !managedCategories.find(c => c.name === r.category)) {
+                        autoCategories.add(r.category);
+                    }
+                });
+                
+                const totalCategories = managedCategories.length + autoCategories.size;
+                firebaseText.textContent = `Connected (Real-time sync: ${syncStatus.syncStatus.cachedReceipts} receipts, ${totalCategories} categories)`;
+            } else if (window.location.protocol === 'file:') {
                 // Electron environment - rely on main process response
                 firebaseText.textContent = mainProcessConnected ? 'Connected' : 'Client Ready';
             } else {
@@ -1724,6 +1888,22 @@ function showNotification(message, type = 'info') {
     }, 5000);
     
     console.log(`${type.toUpperCase()}: ${message}`);
+}
+
+function updateSyncStatusIndicator(isActive) {
+    // Update Firebase status to show sync status
+    const firebaseStatus = document.getElementById('firebase-status');
+    const firebaseText = document.getElementById('firebase-text');
+    
+    if (firebaseStatus && firebaseText) {
+        if (isActive) {
+            firebaseStatus.className = 'status-indicator connected';
+            firebaseText.textContent = 'Firebase (Real-time sync active)';
+        } else {
+            firebaseStatus.className = 'status-indicator disconnected';
+            firebaseText.textContent = 'Firebase (Sync disabled)';
+        }
+    }
 }
 
 function formatCurrency(amount, currency) {

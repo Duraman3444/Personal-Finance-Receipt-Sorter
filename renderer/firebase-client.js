@@ -13,6 +13,14 @@ class FirebaseClientService {
     this.db = null;
     this.isInitialized = false;
     this.isConnected = false;
+    
+    // Real-time listeners and cached data
+    this.receiptsListener = null;
+    this.categoriesListener = null;
+    this.cachedReceipts = [];
+    this.cachedCategories = [];
+    this.isReceiptsListening = false;
+    this.isCategoriesListening = false;
   }
 
   async initialize() {
@@ -67,83 +75,199 @@ class FirebaseClientService {
     }
   }
 
-  // Fetch recent receipts from Firestore
-  async getReceipts(limitCount = 20) {
+  // Start real-time sync for receipts
+  async startReceiptsSync(limitCount = 1000) {
     if (!this.isInitialized) {
       await this.initialize();
     }
+    
+    if (this.isReceiptsListening) {
+      console.log('📡 Receipts sync already active');
+      return this.cachedReceipts;
+    }
+    
     try {
-      const { collection, getDocs, orderBy, query, limit } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const { collection, onSnapshot, orderBy, query, limit } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
       const receiptsRef = collection(this.db, 'receipts');
       const q = query(receiptsRef, orderBy('processed_at', 'desc'), limit(limitCount));
-      const snap = await getDocs(q);
-      const results = [];
-      snap.forEach((doc) => {
-        results.push({ id: doc.id, ...doc.data() });
+      
+      this.receiptsListener = onSnapshot(q, (snapshot) => {
+        const receipts = [];
+        snapshot.forEach((doc) => {
+          receipts.push({ id: doc.id, ...doc.data() });
+        });
+        
+        this.cachedReceipts = receipts;
+        this.isReceiptsListening = true;
+        
+        // Dispatch custom event for UI updates
+        window.dispatchEvent(new CustomEvent('receipts-updated', { 
+          detail: { receipts, timestamp: new Date().toISOString() } 
+        }));
+        
+        console.log(`📡 Receipts synced: ${receipts.length} items`);
+      }, (error) => {
+        console.error('❌ Receipts sync error:', error);
+        this.isReceiptsListening = false;
       });
-      return results;
+      
+      return new Promise((resolve) => {
+        // Return cached data immediately if available, otherwise wait for first sync
+        if (this.cachedReceipts.length > 0) {
+          resolve(this.cachedReceipts);
+        } else {
+          const handler = (event) => {
+            window.removeEventListener('receipts-updated', handler);
+            resolve(event.detail.receipts);
+          };
+          window.addEventListener('receipts-updated', handler);
+        }
+      });
     } catch (error) {
-      console.error('Error fetching receipts:', error);
+      console.error('❌ Error starting receipts sync:', error);
       return [];
     }
+  }
+
+  // Start real-time sync for categories
+  async startCategoriesSync() {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    
+    if (this.isCategoriesListening) {
+      console.log('📡 Categories sync already active');
+      return this.cachedCategories;
+    }
+    
+    try {
+      const { collection, onSnapshot, addDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
+      const categoriesRef = collection(this.db, 'categories');
+      
+      this.categoriesListener = onSnapshot(categoriesRef, async (snapshot) => {
+        const categories = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          categories.push({
+            id: doc.id,
+            name: data.name,
+            color: data.color || '#667eea',
+            icon: data.icon || '📄',
+            monthlyBudget: data.monthlyBudget || 0,
+            createdAt: data.createdAt || new Date()
+          });
+        });
+        
+        // Add default categories if none exist
+        if (categories.length === 0 && !this.defaultCategoriesAdded) {
+          this.defaultCategoriesAdded = true;
+          const defaultCategories = [
+            { name: 'Groceries', color: '#51cf66', icon: '🛒' },
+            { name: 'Restaurants', color: '#fd7e14', icon: '🍽️' },
+            { name: 'Gas', color: '#fa5252', icon: '⛽' },
+            { name: 'Shopping', color: '#e64980', icon: '🛍️' },
+            { name: 'Utilities', color: '#339af0', icon: '⚡' },
+            { name: 'Healthcare', color: '#37b24d', icon: '🏥' },
+            { name: 'Entertainment', color: '#ae3ec9', icon: '🎬' },
+            { name: 'Other', color: '#868e96', icon: '📄' }
+          ];
+          
+          for (const category of defaultCategories) {
+            await addDoc(categoriesRef, { 
+              ...category,
+              createdAt: new Date().toISOString()
+            });
+          }
+          return; // Exit early, the listener will fire again with the new categories
+        }
+        
+        this.cachedCategories = categories.sort((a, b) => a.name.localeCompare(b.name));
+        this.isCategoriesListening = true;
+        
+        // Dispatch custom event for UI updates
+        window.dispatchEvent(new CustomEvent('categories-updated', { 
+          detail: { categories: this.cachedCategories, timestamp: new Date().toISOString() } 
+        }));
+        
+        console.log(`📡 Categories synced: ${categories.length} items`);
+      }, (error) => {
+        console.error('❌ Categories sync error:', error);
+        this.isCategoriesListening = false;
+      });
+      
+      return new Promise((resolve) => {
+        // Return cached data immediately if available, otherwise wait for first sync
+        if (this.cachedCategories.length > 0) {
+          resolve(this.cachedCategories);
+        } else {
+          const handler = (event) => {
+            window.removeEventListener('categories-updated', handler);
+            resolve(event.detail.categories);
+          };
+          window.addEventListener('categories-updated', handler);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error starting categories sync:', error);
+      return [];
+    }
+  }
+
+  // Stop real-time sync
+  stopReceiptsSync() {
+    if (this.receiptsListener) {
+      this.receiptsListener();
+      this.receiptsListener = null;
+      this.isReceiptsListening = false;
+      console.log('📡 Receipts sync stopped');
+    }
+  }
+
+  stopCategoriesSync() {
+    if (this.categoriesListener) {
+      this.categoriesListener();
+      this.categoriesListener = null;
+      this.isCategoriesListening = false;
+      console.log('📡 Categories sync stopped');
+    }
+  }
+
+  stopAllSync() {
+    this.stopReceiptsSync();
+    this.stopCategoriesSync();
+  }
+
+  // Legacy methods for backward compatibility (now use cached data or start sync)
+  async getReceipts(limitCount = 20) {
+    if (this.isReceiptsListening) {
+      return this.cachedReceipts.slice(0, limitCount);
+    }
+    
+    // Start sync if not already listening
+    await this.startReceiptsSync(Math.max(limitCount, 1000));
+    return this.cachedReceipts.slice(0, limitCount);
+  }
+
+  async getCategories() {
+    if (this.isCategoriesListening) {
+      return this.cachedCategories;
+    }
+    
+    // Start sync if not already listening
+    await this.startCategoriesSync();
+    return this.cachedCategories;
+  }
+
+  // Get cached data without triggering sync
+  getCachedReceipts(limitCount = 20) {
+    return this.cachedReceipts.slice(0, limitCount);
+  }
+
+  getCachedCategories() {
+    return this.cachedCategories;
   }
 
   // Category management methods
-  async getCategories() {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-    try {
-      const { collection, getDocs, addDoc } = await import('https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js');
-      const categoriesRef = collection(this.db, 'categories');
-      const snap = await getDocs(categoriesRef);
-      const categories = [];
-      
-      snap.forEach((doc) => {
-        const data = doc.data();
-        categories.push({
-          id: doc.id,
-          name: data.name,
-          color: data.color || '#667eea',
-          icon: data.icon || '📄',
-          createdAt: data.createdAt || new Date()
-        });
-      });
-      
-      // Add default categories if none exist
-      if (categories.length === 0) {
-        const defaultCategories = [
-          { name: 'Groceries', color: '#51cf66', icon: '🛒' },
-          { name: 'Restaurants', color: '#fd7e14', icon: '🍽️' },
-          { name: 'Gas', color: '#fa5252', icon: '⛽' },
-          { name: 'Shopping', color: '#e64980', icon: '🛍️' },
-          { name: 'Utilities', color: '#339af0', icon: '⚡' },
-          { name: 'Healthcare', color: '#37b24d', icon: '🏥' },
-          { name: 'Entertainment', color: '#ae3ec9', icon: '🎬' },
-          { name: 'Other', color: '#868e96', icon: '📄' }
-        ];
-        
-        for (const category of defaultCategories) {
-          await addDoc(categoriesRef, { 
-            ...category,
-            createdAt: new Date().toISOString()
-          });
-        }
-        
-        return defaultCategories.map((cat, index) => ({
-          id: `default_${index}`,
-          ...cat,
-          createdAt: new Date()
-        }));
-      }
-      
-      return categories.sort((a, b) => a.name.localeCompare(b.name));
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      return [];
-    }
-  }
-
   async addCategory(categoryData) {
     if (!this.isInitialized) {
       await this.initialize();
@@ -233,6 +357,12 @@ class FirebaseClientService {
     return {
       initialized: this.isInitialized,
       connected: this.isConnected,
+      syncStatus: {
+        receipts: this.isReceiptsListening,
+        categories: this.isCategoriesListening,
+        cachedReceipts: this.cachedReceipts.length,
+        cachedCategories: this.cachedCategories.length
+      },
       config: {
         projectId: firebaseConfig.projectId,
         authDomain: firebaseConfig.authDomain
